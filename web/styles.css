@@ -1,0 +1,839 @@
+:root {
+    --bg: #09111f;
+    --bg-strong: #050910;
+    --panel: rgba(11, 19, 35, 0.88);
+    --panel-border: rgba(124, 149, 184, 0.18);
+    --text: #eef4ff;
+    --muted: #94a7c4;
+    --accent: #f7f4ea;
+    --twitch: #9146ff;
+    --youtube: #ff0000;
+    --kick: #53fc18;
+    --tiktok: #25f4ee;
+    --ok: #73f0a8;
+    --warn: #ffd166;
+    --danger: #ff7b7b;
+    --shadow: 0 30px 70px rgba(0, 0, 0, 0.35);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    height: 100%;
+    background:
+        radial-gradient(circle at top left, rgba(145, 70, 255, 0.18), transparent 30%),
+        radial-gradient(circle at top right, rgba(83, 252, 24, 0.12), transparent 26%),
+        linear-gradient(160deg, #09111f 0%, #050910 65%, #020408 100%);
+    color: var(--text);
+    font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+    overflow: hidden;
+}
+
+body {
+    padding: 28px;
+}
+
+.app-shell {
+    max-width: 1320px;
+    margin: 0 auto;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.hero {
+    grid-column: 1;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    padding: 14px 16px;
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    background: linear-gradient(140deg, rgba(14, 23, 41, 0.96), rgba(9, 15, 28, 0.88));
+    box-shadow: var(--shadow);
+}
+
+h1,
+h2 {
+    margin: 0;
+}
+
+h1 {
+    font-size: 1.85rem;
+    line-height: 1;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.lite-tag {
+    font-size: 0.6em;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    align-self: flex-end;
+}
+
+.header-logo {
+    height: 1.6em;
+    width: auto;
+}
+
+h2 {
+    font-size: 1.15rem;
+}
+
+.layout-grid {
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 20px;
+    align-items: stretch;
+    flex: 1;
+    min-height: 0;
+}
+
+/* The side column scrolls on its own so the app always fits the viewport,
+   no matter how short the window is. */
+.side-column {
+    grid-column: 1;
+    grid-row: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(124, 149, 184, 0.35) transparent;
+    padding-right: 4px;
+}
+
+.side-column::-webkit-scrollbar {
+    width: 6px;
+}
+
+.side-column::-webkit-scrollbar-thumb {
+    background: rgba(124, 149, 184, 0.35);
+    border-radius: 3px;
+}
+
+.side-column > .panel {
+    flex-shrink: 0;
+}
+
+.panel {
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    background: var(--panel);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(16px);
+}
+
+/* All side-column section headers share the micro-label look. */
+.side-column h2 {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 16px 0;
+}
+
+.feed-panel > .panel-header {
+    padding: 10px 14px 4px;
+    gap: 10px;
+}
+
+.channels-panel .panel-header,
+.controls-panel .panel-header {
+    padding: 10px 16px 0;
+}
+
+.channels-form {
+    display: grid;
+    gap: 8px;
+    padding: 10px 16px 14px;
+}
+
+.channel-field {
+    display: grid;
+    grid-template-columns: 72px 1fr auto;
+    align-items: center;
+    gap: 8px;
+}
+
+.channel-clear {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: 7px;
+    background: rgba(255, 59, 48, 0.18);
+    color: #ff7b7b;
+    font-size: 0.72rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 160ms ease, transform 160ms ease;
+}
+
+.channel-clear:hover {
+    background: rgba(255, 59, 48, 0.4);
+    transform: scale(1.12);
+}
+
+.channel-clear.hidden {
+    display: none;
+}
+
+.channel-label {
+    font-size: 0.74rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+}
+
+.channel-field[data-platform="twitch"] .channel-label {
+    color: var(--twitch);
+}
+
+.channel-field[data-platform="youtube"] .channel-label {
+    color: var(--youtube);
+}
+
+.channel-field[data-platform="kick"] .channel-label {
+    color: var(--kick);
+}
+
+.channel-field[data-platform="tiktok"] .channel-label {
+    color: var(--tiktok);
+}
+
+.channel-input {
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+}
+
+.channel-input:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.connect-button {
+    margin-top: 4px;
+    padding: 9px 16px;
+    justify-content: center;
+}
+
+.input-field {
+    width: 100%;
+    border-radius: 9px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(4, 8, 15, 0.72);
+    color: var(--text);
+    padding: 10px 16px;
+    font: inherit;
+}
+
+.controls-panel .filter-row {
+    padding: 10px 16px 14px;
+    gap: 8px;
+}
+
+.filter-row {
+    padding: 20px 22px 22px;
+}
+
+.status-grid {
+    display: grid;
+    gap: 8px;
+    padding: 10px 16px 16px;
+}
+
+.status-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.status-detail {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
+.status-dot {
+    width: 9px;
+    height: 9px;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: var(--warn);
+    box-shadow: 0 0 10px currentColor;
+}
+
+.status-dot.ok {
+    background: var(--ok);
+    color: var(--ok);
+}
+
+.status-dot.warn {
+    background: var(--warn);
+    color: var(--warn);
+}
+
+.status-dot.error {
+    background: var(--danger);
+    color: var(--danger);
+}
+
+.status-dot.idle {
+    background: rgba(255, 255, 255, 0.25);
+    color: transparent;
+    box-shadow: none;
+}
+
+.about-panel {
+    padding: 12px 16px;
+    display: grid;
+    gap: 10px;
+}
+
+.about-links {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.about-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 12px;
+    font-size: 0.85rem;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    color: var(--muted);
+    text-decoration: none;
+    transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+}
+
+.about-link svg {
+    height: 13px;
+    width: auto;
+}
+
+.about-link:hover {
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--text);
+}
+
+.about-link.donate {
+    border-color: rgba(255, 209, 102, 0.3);
+    color: #ffd166;
+}
+
+.about-link.donate:hover {
+    background: rgba(255, 209, 102, 0.1);
+    color: #ffe199;
+}
+
+.about-credit {
+    margin: 0;
+    font-size: 0.78rem;
+    color: var(--muted);
+}
+
+.about-credit .heart {
+    color: #ff3b3b;
+}
+
+.about-credit a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.about-credit a:hover {
+    color: var(--text);
+}
+
+.about-credit .heart {
+    color: #ff5c8a;
+}
+
+
+.filter-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.ghost-button,
+.primary-button {
+    cursor: pointer;
+    border: 0;
+    border-radius: 10px;
+    font: inherit;
+    transition: transform 160ms ease, opacity 160ms ease, background 160ms ease;
+}
+
+.ghost-button:hover,
+.primary-button:hover {
+    transform: translateY(-1px);
+}
+
+.filter-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 12px;
+    font: inherit;
+    font-size: 0.85rem;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    color: var(--muted);
+    cursor: pointer;
+    transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+}
+
+.filter-button:hover {
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.filter-button.active {
+    color: var(--text);
+}
+
+.chip-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.22);
+    transition: background 160ms ease, box-shadow 160ms ease;
+}
+
+.filter-button.active[data-platform="twitch"] {
+    border-color: rgba(145, 70, 255, 0.45);
+}
+
+.filter-button.active[data-platform="twitch"] .chip-dot {
+    background: var(--twitch);
+    box-shadow: 0 0 8px var(--twitch);
+}
+
+.filter-button.active[data-platform="youtube"] {
+    border-color: rgba(255, 0, 0, 0.5);
+}
+
+.filter-button.active[data-platform="youtube"] .chip-dot {
+    background: var(--youtube);
+    box-shadow: 0 0 8px var(--youtube);
+}
+
+.filter-button.active[data-platform="kick"] {
+    border-color: rgba(83, 252, 24, 0.4);
+}
+
+.filter-button.active[data-platform="kick"] .chip-dot {
+    background: var(--kick);
+    box-shadow: 0 0 8px var(--kick);
+}
+
+.filter-button.active[data-platform="tiktok"] {
+    border-color: rgba(37, 244, 238, 0.4);
+}
+
+.filter-button.active[data-platform="tiktok"] .chip-dot {
+    background: var(--tiktok);
+    box-shadow: 0 0 8px var(--tiktok);
+}
+
+.settings-rows {
+    display: grid;
+    gap: 10px;
+    padding: 10px 16px 16px;
+}
+
+.settings-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.settings-label {
+    font-size: 0.88rem;
+    color: var(--text);
+}
+
+.switch {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    padding: 0;
+    flex-shrink: 0;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.07);
+    cursor: pointer;
+    transition: background 180ms ease, border-color 180ms ease;
+}
+
+.switch::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #94a7c4;
+    transition: transform 180ms ease, background 180ms ease;
+}
+
+.switch.active {
+    background: rgba(115, 240, 168, 0.22);
+    border-color: rgba(115, 240, 168, 0.5);
+}
+
+.switch.active::after {
+    transform: translateX(16px);
+    background: var(--ok);
+}
+
+.settings-action {
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 123, 123, 0.22);
+    background: transparent;
+    color: var(--danger);
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 160ms ease;
+}
+
+.settings-action:hover {
+    background: rgba(255, 59, 48, 0.12);
+}
+
+.ghost-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 11px 18px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text);
+    text-decoration: none;
+}
+
+.small-button {
+    padding: 6px 10px;
+    font-size: 0.88rem;
+}
+
+.primary-button {
+    padding: 11px 18px;
+    color: #08111c;
+    background: linear-gradient(135deg, #ff574b 0%, #2fe273 52%, #a14dff 100%);
+    border: 0;
+    font-weight: 700;
+}
+
+.primary-button:hover {
+    background: linear-gradient(135deg, #ff6a5f 0%, #43f184 52%, #b164ff 100%);
+    box-shadow: 0 4px 16px rgba(161, 77, 255, 0.4);
+}
+
+.feed-panel {
+    grid-column: 2;
+    grid-row: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.feed-panel > .panel-header {
+    flex-shrink: 0;
+}
+
+.feed-wrapper {
+    position: relative;
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.feed {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 4px 4px;
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.scroll-bottom {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%) translateY(0);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--panel-border);
+    background: rgba(30, 40, 60, 0.9);
+    color: var(--text);
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: transform 220ms ease, opacity 220ms ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    z-index: 10;
+    opacity: 1;
+}
+
+.scroll-bottom:hover {
+    transform: translateX(-50%) scale(1.1);
+    background: rgba(40, 55, 80, 0.95);
+}
+
+.scroll-bottom.hidden {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+    pointer-events: none;
+}
+
+.message-card {
+    padding: 6px 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.message-card:last-child {
+    animation: fade-in 220ms ease;
+}
+
+.message-card.deleted {
+    opacity: 0.72;
+}
+
+.message-card.deleted .message-text {
+    text-decoration: line-through;
+    text-decoration-thickness: 2px;
+}
+
+.message-card.deleted .emote {
+    filter: grayscale(1);
+    opacity: 0.5;
+}
+
+@property --twitch-rainbow-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+}
+
+.message-card.system-notice {
+    border: 2px solid transparent;
+    background:
+        linear-gradient(rgba(145, 70, 255, 0.08), rgba(145, 70, 255, 0.08)) padding-box,
+        linear-gradient(#0d1626, #0d1626) padding-box,
+        conic-gradient(
+            from var(--twitch-rainbow-angle),
+            rgba(255, 59, 59, 0.8), rgba(255, 177, 59, 0.8), rgba(245, 238, 58, 0.8), rgba(76, 217, 100, 0.8),
+            rgba(52, 192, 255, 0.8), rgba(106, 92, 255, 0.8), rgba(255, 92, 209, 0.8), rgba(255, 59, 59, 0.8)
+        ) border-box;
+    animation: twitch-rainbow-spin 6s linear infinite;
+}
+
+@keyframes twitch-rainbow-spin {
+    to { --twitch-rainbow-angle: 360deg; }
+}
+
+.system-notice-text {
+    color: #fff;
+}
+
+.message-link {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: currentColor;
+    text-underline-offset: 2px;
+    overflow-wrap: anywhere;
+}
+
+.message-link:hover {
+    text-decoration-thickness: 2px;
+}
+
+.message-topline {
+    display: inline;
+    line-height: 1;
+    margin-bottom: 2px;
+}
+
+.platform-pill {
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+    gap: 5px;
+    padding: 3px 6px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    color: #fff;
+    margin-right: 3px;
+}
+
+.platform-pill svg,
+.platform-pill img {
+    height: 16px;
+    vertical-align: middle;
+}
+
+.platform-pill.twitch {
+    background: rgba(145, 70, 255, 0.18);
+}
+
+.platform-pill.youtube {
+    background: rgba(255, 0, 0, 0.16);
+}
+
+.platform-pill.kick {
+    background: rgba(83, 252, 24, 0.18);
+    color: #d7ffd0;
+}
+
+.platform-pill.tiktok {
+    background: rgba(37, 244, 238, 0.14);
+    color: #d6fdfb;
+}
+
+.message-time {
+    color: var(--muted);
+    font-size: 0.82rem;
+    margin-right: 4px;
+}
+
+.author-name {
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.message-text {
+    word-break: break-word;
+    font-size: 0.93rem;
+}
+
+.emote {
+    height: 1.4em;
+    vertical-align: middle;
+    margin: 0 1px;
+}
+
+.empty-state {
+    padding: 20px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--muted);
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (max-width: 1120px) {
+    html, body {
+        height: auto;
+        overflow: auto;
+    }
+
+    .app-shell {
+        height: auto;
+    }
+
+    .layout-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+    }
+
+    .hero,
+    .side-column,
+    .feed-panel {
+        grid-column: 1;
+        grid-row: auto;
+    }
+
+    .side-column {
+        overflow-y: visible;
+        padding-right: 0;
+    }
+
+    .feed-panel {
+        height: calc(100vh - 80px);
+        min-height: 400px;
+        overflow: visible;
+    }
+
+    .feed {
+        max-height: none;
+    }
+}
+
+@media (max-width: 720px) {
+    body {
+        padding: 10px;
+    }
+
+    .hero {
+        padding: 12px 16px;
+        border-radius: 12px;
+    }
+
+    .panel {
+        border-radius: 12px;
+    }
+}

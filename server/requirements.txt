@@ -1,0 +1,5 @@
+fastapi
+uvicorn[standard]
+websockets
+curl_cffi
+TikTokLive

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>Unified Chat Lite</title>
+    <link rel="icon" href="assets/favicon.ico">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-shell">
+        <main class="layout-grid">
+            <header class="hero">
+                <h1><img src="assets/favicon.ico" class="header-logo" alt="">Unified Chat <span class="lite-tag">Lite</span></h1>
+            </header>
+
+            <div class="side-column">
+            <section class="panel channels-panel">
+                <div class="panel-header">
+                    <h2>Channels</h2>
+                </div>
+                <form id="channels-form" class="channels-form">
+                    <div class="channel-field" data-platform="twitch">
+                        <span class="channel-label">Twitch</span>
+                        <input id="channel-twitch" class="input-field channel-input" type="text"
+                            placeholder="channel name" autocomplete="off" spellcheck="false">
+                        <button id="clear-twitch" class="channel-clear hidden" type="button"
+                            title="Disconnect Twitch">&#x2715;</button>
+                    </div>
+                    <div class="channel-field" data-platform="youtube">
+                        <span class="channel-label">YouTube</span>
+                        <input id="channel-youtube" class="input-field channel-input" type="text"
+                            placeholder="@handle" autocomplete="off" spellcheck="false">
+                        <button id="clear-youtube" class="channel-clear hidden" type="button"
+                            title="Disconnect YouTube">&#x2715;</button>
+                    </div>
+                    <div class="channel-field" data-platform="kick">
+                        <span class="channel-label">Kick</span>
+                        <input id="channel-kick" class="input-field channel-input" type="text"
+                            placeholder="channel name" autocomplete="off" spellcheck="false">
+                        <button id="clear-kick" class="channel-clear hidden" type="button"
+                            title="Disconnect Kick">&#x2715;</button>
+                    </div>
+                    <div class="channel-field" data-platform="tiktok">
+                        <span class="channel-label">TikTok</span>
+                        <input id="channel-tiktok" class="input-field channel-input" type="text"
+                            placeholder="@username" autocomplete="off" spellcheck="false">
+                        <button id="clear-tiktok" class="channel-clear hidden" type="button"
+                            title="Disconnect TikTok">&#x2715;</button>
+                    </div>
+                    <button type="submit" class="primary-button connect-button">Connect</button>
+                </form>
+            </section>
+
+            <section class="panel controls-panel">
+                <div class="panel-header">
+                    <h2>Filter</h2>
+                </div>
+                <div class="filter-row">
+                    <button class="filter-button active" data-platform="twitch" type="button"><span class="chip-dot"></span>Twitch</button>
+                    <button class="filter-button active" data-platform="youtube" type="button"><span class="chip-dot"></span>YouTube</button>
+                    <button class="filter-button active" data-platform="kick" type="button"><span class="chip-dot"></span>Kick</button>
+                    <button class="filter-button active" data-platform="tiktok" type="button"><span class="chip-dot"></span>TikTok</button>
+                </div>
+                <div class="panel-header">
+                    <h2>Settings</h2>
+                </div>
+                <div class="settings-rows">
+                    <div class="settings-row">
+                        <span class="settings-label">Platform names</span>
+                        <button id="toggle-platform-names" class="switch" type="button"
+                            title="Show platform names in messages"></button>
+                    </div>
+                    <div class="settings-row">
+                        <span class="settings-label">24-hour clock</span>
+                        <button id="toggle-clock" class="switch" type="button"
+                            title="Use 24-hour time format"></button>
+                    </div>
+                    <button id="clear-messages" class="settings-action" type="button">Clear chat</button>
+                </div>
+            </section>
+
+            <section class="panel status-panel">
+                <div class="panel-header">
+                    <h2>Connector Status</h2>
+                </div>
+                <div id="status-grid" class="status-grid"></div>
+            </section>
+
+            <section class="panel about-panel">
+                <div class="about-links">
+                    <a class="about-link" href="mailto:kim3k@live.no" title="Contact me">
+                        <svg viewBox="0 0 512 512" aria-hidden="true"><path fill="currentColor" d="M464 64C490.5 64 512 85.5 512 112C512 127.1 504.9 141.3 492.8 150.4L275.2 313.6C263.8 322.1 248.2 322.1 236.8 313.6L19.2 150.4C7.113 141.3 0 127.1 0 112C0 85.5 21.49 64 48 64H464zM217.6 339.2C240.4 356.3 271.6 356.3 294.4 339.2L512 176V384C512 419.3 483.3 448 448 448H64C28.65 448 0 419.3 0 384V176L217.6 339.2z"/></svg>
+                        Contact
+                    </a>
+                    <a class="about-link" href="https://github.com/kimsec" target="_blank" rel="noopener" title="GitHub">
+                        <svg viewBox="0 0 496 512" aria-hidden="true"><path fill="currentColor" d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.3 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8z"/></svg>
+                        GitHub
+                    </a>
+                    <a class="about-link donate" href="https://donation.kimsec.net" title="Support the project">
+                        <svg viewBox="0 0 512 512" aria-hidden="true"><path fill="currentColor" d="M47.6 300.4L228.3 469.1c7.5 7 17.4 10.9 27.7 10.9s20.2-3.9 27.7-10.9L464.4 300.4c30.4-28.3 47.6-68 47.6-109.5v-5.8c0-69.9-50.5-129.5-119.4-141C347 36.5 300.6 51.4 268 84L256 96 244 84c-32.6-32.6-79-47.5-124.6-39.9C50.5 55.6 0 115.2 0 185.1v5.8c0 41.5 17.2 81.2 47.6 109.5z"/></svg>
+                        Donate
+                    </a>
+                </div>
+                <p class="about-credit">Made with <span class="heart">❤</span> by Kim AH</p>
+            </section>
+            </div>
+
+            <section class="panel feed-panel">
+                <div class="panel-header">
+                    <h2>Unified Feed</h2>
+                    <button id="popout-chat" class="ghost-button small-button" type="button"
+                        title="Open the chat in its own window">&#x29c9; Popout</button>
+                </div>
+                <div class="feed-wrapper">
+                    <div id="feed" class="feed" aria-live="polite"></div>
+                    <button id="scroll-bottom" class="scroll-bottom hidden" type="button" title="Scroll to bottom">&darr;</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js" defer></script>
+</body>
+</html>

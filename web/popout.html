@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>Unified Chat Lite - Popout</title>
+    <link rel="icon" href="assets/favicon.ico">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            padding: 0;
+        }
+        .app-shell {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            max-width: none;
+        }
+        .feed-panel {
+            flex: 1;
+            min-height: 0;
+            height: auto;
+            display: flex;
+            flex-direction: column;
+            border-radius: 0;
+            border: none;
+        }
+        .feed {
+            flex: 1 1 0;
+            min-height: 0;
+        }
+    </style>
+</head>
+<body data-mode="popout">
+    <div class="app-shell">
+        <section class="panel feed-panel">
+            <div class="feed-wrapper">
+                <div id="feed" class="feed" aria-live="polite"></div>
+                <button id="scroll-bottom" class="scroll-bottom hidden" type="button" title="Scroll to bottom">&darr;</button>
+            </div>
+        </section>
+    </div>
+
+    <script src="app.js" defer></script>
+</body>
+</html>
