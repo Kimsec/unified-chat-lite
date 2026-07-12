@@ -55,4 +55,9 @@ async def handle_subscribe(viewer: Viewer, channels: dict) -> None:
     await viewer.send(hub.bootstrap_payload(viewer))
 
 
+@app.get("/health")
+async def health() -> dict:
+    return {"status": "ok"}
+
+
 app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
