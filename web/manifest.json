@@ -1,0 +1,27 @@
+{
+    "name": "Unified Chat Lite",
+    "short_name": "Unified Chat",
+    "description": "Watch Twitch, YouTube, Kick and TikTok live chats together in one clean feed.",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#09111f",
+    "theme_color": "#09111f",
+    "icons": [
+        {
+            "src": "assets/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "assets/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "assets/icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}
