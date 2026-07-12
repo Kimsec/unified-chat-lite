@@ -101,6 +101,8 @@
                         <svg viewBox="0 0 512 512" aria-hidden="true"><path fill="currentColor" d="M47.6 300.4L228.3 469.1c7.5 7 17.4 10.9 27.7 10.9s20.2-3.9 27.7-10.9L464.4 300.4c30.4-28.3 47.6-68 47.6-109.5v-5.8c0-69.9-50.5-129.5-119.4-141C347 36.5 300.6 51.4 268 84L256 96 244 84c-32.6-32.6-79-47.5-124.6-39.9C50.5 55.6 0 115.2 0 185.1v5.8c0 41.5 17.2 81.2 47.6 109.5z"/></svg>
                         Donate
                     </a>
+                    <button id="open-info" class="ghost-button small-button info-button" type="button"
+                        title="How this site works">&#9432; More info</button>
                 </div>
                 <p class="about-credit">Made with <span class="heart">❤</span> by Kim AH</p>
             </section>
@@ -118,6 +120,57 @@
                 </div>
             </section>
         </main>
+    </div>
+
+    <div id="info-overlay" class="info-overlay hidden">
+        <div class="info-dialog panel" role="dialog" aria-modal="true" aria-labelledby="info-title">
+            <div class="info-header">
+                <h2 id="info-title">Tips &amp; tricks</h2>
+                <button id="close-info" class="info-close" type="button" title="Close">&#x2715;</button>
+            </div>
+            <div class="info-body">
+                <section>
+                    <h3>Connect</h3>
+                    <ul>
+                        <li>Type channel names, press <strong>Enter</strong> or <strong>Connect</strong></li>
+                        <li>The red &#x2715; disconnects that platform</li>
+                        <li>Your channels are saved &mdash; and live in the page URL</li>
+                    </ul>
+                </section>
+                <section>
+                    <h3>Popout &amp; sharing</h3>
+                    <ul>
+                        <li><strong>Popout</strong> opens the chat in its own window</li>
+                        <li>The popout link works on its own &mdash; bookmark it, make a desktop shortcut, or share
+                            it</li>
+                    </ul>
+                </section>
+                <section>
+                    <h3>Watch the stream</h3>
+                    <ul>
+                        <li>In the popout, press <strong>&#9654;</strong> (top right) &mdash; starts muted</li>
+                        <li>Click the platform icons to switch source</li>
+                        <li>YouTube appears once the channel is live</li>
+                    </ul>
+                </section>
+                <section>
+                    <h3>OBS overlay</h3>
+                    <ul>
+                        <li>Add <strong>&amp;overlay=1</strong> to the popout link and use it as a Browser source</li>
+                        <li>Transparent background &mdash; chat floats right on the stream image</li>
+                        <li>Messages fade out after 60 s; <strong>&amp;fade=120</strong> changes the lifetime</li>
+                    </ul>
+                </section>
+                <section>
+                    <h3>Good to know</h3>
+                    <ul>
+                        <li>Filter chips hide platforms in your view only</li>
+                        <li>Deleted messages stay, with a strikethrough</li>
+                        <li>The feed keeps the latest 200 messages</li>
+                    </ul>
+                </section>
+            </div>
+        </div>
     </div>
 
     <script src="app.js" defer></script>
