@@ -1,5 +1,16 @@
 const isPopout = document.body.dataset.mode === "popout";
 
+// Overlay mode (popout.html?overlay=1): a transparent, chrome-less variant of
+// the popout for capturing chat directly in the stream image via an OBS
+// browser source. Messages fade out after fade=<seconds> (default 60).
+const pageParams = new URLSearchParams(window.location.search);
+const isOverlay = isPopout && pageParams.has("overlay");
+const OVERLAY_FADE_MS = Math.max(Number(pageParams.get("fade")) || 60, 5) * 1000;
+if (isOverlay) {
+  document.documentElement.classList.add("overlay-mode");
+  document.documentElement.style.setProperty("--overlay-fade", `${OVERLAY_FADE_MS}ms`);
+}
+
 const state = {
   messages: [],
   statuses: new Map(),
@@ -276,6 +287,15 @@ function markDeleted(predicate) {
   renderMessages();
 }
 
+// In overlay mode every card runs the fade-out animation; a negative delay
+// makes rebuilt DOM nodes resume at the right point of their lifetime instead
+// of restarting the countdown on every render.
+function overlayFadeStyle(message) {
+  if (!isOverlay) return "";
+  const age = Math.max(Date.now() - new Date(message.timestamp).getTime(), 0);
+  return ` style="animation-delay: -${age}ms"`;
+}
+
 function renderMessages() {
   const visibleMessages = state.messages.filter((message) => state.filters[message.platform] !== false);
 
@@ -290,7 +310,7 @@ function renderMessages() {
     const messageClass = message.deleted ? "message-card deleted" : "message-card";
     if (message.kind === "system") {
       return `
-        <article class="${messageClass} system-notice" data-platform="${message.platform}">
+        <article class="${messageClass} system-notice" data-platform="${message.platform}"${overlayFadeStyle(message)}>
           <span class="message-topline"><span class="message-time">${formatTime(message.timestamp)}</span> ${platformMarkup(message.platform)}<span class="message-text system-notice-text">${renderMessageText(message.text, message.emotes, message.platform)}</span></span>
         </article>
       `;
@@ -298,7 +318,7 @@ function renderMessages() {
     const readableColor = ensureReadableColor(message.color);
     const authorStyle = readableColor ? `style="color:${readableColor}"` : "";
     return `
-      <article class="${messageClass}" data-platform="${message.platform}">
+      <article class="${messageClass}" data-platform="${message.platform}"${overlayFadeStyle(message)}>
         <span class="message-topline"><span class="message-time">${formatTime(message.timestamp)}</span> ${platformMarkup(message.platform)}<span class="author-name" ${authorStyle}>${escapeHtml(message.author)}:</span> <span class="message-text">${renderMessageText(message.text, message.emotes, message.platform)}</span></span>
       </article>
     `;
@@ -328,9 +348,12 @@ scrollBottomBtn.addEventListener("click", () => {
 // ---------------------------------------------------------------------------
 // Status panel (main window only)
 
-function setStatus(platform, dot, stateText, detail) {
-  state.statuses.set(platform, { platform, dot, state: stateText, detail });
+function setStatus(platform, dot, stateText, detail, videoId) {
+  state.statuses.set(platform, { platform, dot, state: stateText, detail, video_id: videoId });
   renderStatuses();
+  // The YouTube embed depends on the live video id carried by statuses, so
+  // the player may gain/lose that source when one arrives.
+  if (platform === "youtube") renderPlayer();
 }
 
 function renderStatuses() {
@@ -414,7 +437,7 @@ class HubConnection {
         state.messages = payload.messages.slice(-MAX_VISIBLE_MESSAGES);
         state.statuses.clear();
         for (const status of payload.statuses) {
-          setStatus(status.platform, status.dot, status.state, status.detail);
+          setStatus(status.platform, status.dot, status.state, status.detail, status.video_id);
         }
         renderStatuses(); // even when statuses is empty (everything disconnected)
         renderMessages();
@@ -426,7 +449,7 @@ class HubConnection {
         markDeleted((m) => payload.ids.includes(m.id));
         break;
       case "status":
-        setStatus(payload.status.platform, payload.status.dot, payload.status.state, payload.status.detail);
+        setStatus(payload.status.platform, payload.status.dot, payload.status.state, payload.status.detail, payload.status.video_id);
         break;
     }
   }
@@ -533,6 +556,22 @@ if (popoutBtn) {
   });
 }
 
+// "More info" overlay (main window only): quick usage tips, closed via the ✕,
+// a click on the backdrop, or Escape.
+const infoOverlayEl = document.getElementById("info-overlay");
+const openInfoBtn = document.getElementById("open-info");
+if (infoOverlayEl && openInfoBtn) {
+  const closeInfo = () => infoOverlayEl.classList.add("hidden");
+  openInfoBtn.addEventListener("click", () => infoOverlayEl.classList.remove("hidden"));
+  document.getElementById("close-info").addEventListener("click", closeInfo);
+  infoOverlayEl.addEventListener("click", (event) => {
+    if (event.target === infoOverlayEl) closeInfo();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !infoOverlayEl.classList.contains("hidden")) closeInfo();
+  });
+}
+
 const toggleClock = document.getElementById("toggle-clock");
 if (toggleClock) {
   toggleClock.classList.toggle("active", use24hClock);
@@ -563,18 +602,35 @@ if (toggleNames) {
 
 // ---------------------------------------------------------------------------
 // Stream player (popout only): an embedded player docked above the feed,
-// starting muted. Twitch and Kick have official embed players; YouTube needs
-// the live video id (not the @handle) and TikTok has no embed, so those are
-// left out for now. Note: the Twitch embed requires the page to be served
-// over HTTPS (localhost excepted) — plain http://<lan-ip> will show a blank
-// player for Twitch, while Kick still works.
+// starting muted. Twitch, Kick and YouTube have embed players; TikTok has
+// none. YouTube embeds by live video id, which the server discovers when the
+// chat connects and ships on the status payload — so YouTube only becomes
+// pickable once the channel is actually live. Note: the Twitch embed requires
+// the page to be served over HTTPS (localhost excepted) — plain
+// http://<lan-ip> will show a blank player for Twitch, while the others work.
 
 const PLAYER_STORAGE_KEY = "popoutPlayer";
-const PLAYER_EMBEDS = {
-  twitch: (channel) =>
-    `https://player.twitch.tv/?channel=${encodeURIComponent(channel)}&parent=${encodeURIComponent(window.location.hostname)}&muted=true&autoplay=true`,
-  kick: (channel) => `https://player.kick.com/${encodeURIComponent(channel)}?muted=true&autoplay=true`,
-};
+const PLAYER_PLATFORMS = ["twitch", "kick", "youtube"];
+
+// Returns the embed URL for a platform, or null when it can't be played
+// right now (no channel connected, or YouTube without a live video id yet).
+function playerEmbedSrc(platform) {
+  const channel = playerState.channels[platform];
+  if (!channel) return null;
+  switch (platform) {
+    case "twitch":
+      return `https://player.twitch.tv/?channel=${encodeURIComponent(channel)}&parent=${encodeURIComponent(window.location.hostname)}&muted=true&autoplay=true`;
+    case "kick":
+      return `https://player.kick.com/${encodeURIComponent(channel)}?muted=true&autoplay=true`;
+    case "youtube": {
+      const videoId = state.statuses.get("youtube")?.video_id;
+      return videoId
+        ? `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&mute=1`
+        : null;
+    }
+  }
+  return null;
+}
 
 const playerPaneEl = document.getElementById("player-pane");
 const playerFrameEl = document.getElementById("player-frame");
@@ -598,8 +654,8 @@ function savePlayerState() {
 }
 
 function renderPlayer() {
-  if (!playerPaneEl) return;
-  const available = Object.keys(PLAYER_EMBEDS).filter((platform) => playerState.channels[platform]);
+  if (!playerPaneEl || isOverlay) return; // no player inside an OBS overlay
+  const available = PLAYER_PLATFORMS.filter((platform) => playerEmbedSrc(platform) !== null);
   if (!available.includes(playerState.source)) {
     playerState.source = available[0] || null;
   }
@@ -619,10 +675,10 @@ function renderPlayer() {
     return;
   }
   if (!playerState.source) {
-    playerFrameEl.innerHTML = `<div class="player-empty">Connect a Twitch or Kick channel to watch the stream here.</div>`;
+    playerFrameEl.innerHTML = `<div class="player-empty">Connect a live Twitch, Kick or YouTube channel to watch the stream here.</div>`;
     return;
   }
-  const src = PLAYER_EMBEDS[playerState.source](playerState.channels[playerState.source]);
+  const src = playerEmbedSrc(playerState.source);
   // Only swap the iframe when the target actually changed — a reload means a
   // fresh player (and on Twitch potentially a new pre-roll ad).
   if (playerFrameEl.querySelector("iframe")?.src === src) return;
@@ -673,9 +729,14 @@ function applyPopoutChannels(channels) {
   hubConnection.setChannels(channels);
   playerState.channels = channels;
   renderPlayer();
-  const params = new URLSearchParams();
+  // Start from the current query so non-channel params (overlay, fade) survive.
+  const params = new URLSearchParams(window.location.search);
   for (const platform of PLATFORMS) {
-    if (channels[platform]) params.set(platform, channels[platform]);
+    if (channels[platform]) {
+      params.set(platform, channels[platform]);
+    } else {
+      params.delete(platform);
+    }
   }
   const query = params.toString();
   window.history.replaceState(null, "", query ? `?${query}` : window.location.pathname);
@@ -689,6 +750,18 @@ if (isPopout) {
     applyPopoutChannels(channels);
   } else {
     renderPlayer(); // restore the toggle/open state even with nothing to watch
+  }
+  if (isOverlay) {
+    // Prune messages the fade animation has already hidden so the DOM stays
+    // small during long streams.
+    setInterval(() => {
+      const cutoff = Date.now() - OVERLAY_FADE_MS;
+      const kept = state.messages.filter((message) => new Date(message.timestamp).getTime() >= cutoff);
+      if (kept.length !== state.messages.length) {
+        state.messages = kept;
+        renderMessages();
+      }
+    }, 1000);
   }
 } else {
   renderStatuses();
