@@ -6,9 +6,19 @@ const isPopout = document.body.dataset.mode === "popout";
 const pageParams = new URLSearchParams(window.location.search);
 const isOverlay = isPopout && pageParams.has("overlay");
 const OVERLAY_FADE_MS = Math.max(Number(pageParams.get("fade")) || 60, 5) * 1000;
+const overlayOptions = {
+  size: Math.min(Math.max(Number(pageParams.get("size")) || 0, 0), 64),
+  alignRight: pageParams.get("align") === "right",
+  max: Math.min(Math.max(Number(pageParams.get("max")) || 0, 0), 200),
+  icons: pageParams.get("icons") !== "0",
+};
 if (isOverlay) {
-  document.documentElement.classList.add("overlay-mode");
-  document.documentElement.style.setProperty("--overlay-fade", `${OVERLAY_FADE_MS}ms`);
+  const root = document.documentElement;
+  root.classList.add("overlay-mode");
+  root.style.setProperty("--overlay-fade", `${OVERLAY_FADE_MS}ms`);
+  if (overlayOptions.size) root.style.setProperty("--overlay-font", `${overlayOptions.size}px`);
+  if (overlayOptions.alignRight) root.classList.add("overlay-align-right");
+  if (!overlayOptions.icons) root.classList.add("overlay-no-icons");
 }
 
 const state = {
@@ -21,7 +31,7 @@ const state = {
     tiktok: true,
   },
 };
-const MAX_VISIBLE_MESSAGES = 200;
+const MAX_VISIBLE_MESSAGES = isOverlay && overlayOptions.max ? overlayOptions.max : 200;
 
 const feedEl = document.getElementById("feed");
 const statusGridEl = document.getElementById("status-grid");
@@ -38,21 +48,56 @@ const PLATFORM_SVGS = {
   tiktok: `<svg viewBox="0 0 448 512" aria-hidden="true"><path fill="#eef4ff" d="M448,209.91a210.06,210.06,0,0,1-122.77-39.25V349.38A162.55,162.55,0,1,1,185,188.31V278.2a74.62,74.62,0,1,0,52.23,71.18V0l88,0a121.18,121.18,0,0,0,1.86,22.17h0A122.18,122.18,0,0,0,381,102.39a121.43,121.43,0,0,0,67,20.14Z"/></svg>`,
 };
 
-// Platform pill names are opt-in (off by default).
-const PLATFORM_NAMES_STORAGE_KEY = "showPlatformNames";
-let showPlatformNames = readPlatformNamesPreference();
+// Platform icon in messages is opt-out.
+const PLATFORM_STORAGE_KEY = "showPlatform";
+let showPlatform = readPlatformPreference();
 
-function readPlatformNamesPreference() {
+function readPlatformPreference() {
   try {
-    return window.localStorage.getItem(PLATFORM_NAMES_STORAGE_KEY) === "true";
+    return window.localStorage.getItem(PLATFORM_STORAGE_KEY) !== "false";
   } catch (_) {
-    return false;
+    return true;
   }
 }
 
 function platformMarkup(platform) {
-  const name = showPlatformNames ? `<span class="platform-name">${PLATFORM_NAMES[platform]}</span>` : "";
-  return `<span class="platform-pill ${platform}">${PLATFORM_SVGS[platform]}${name}</span>`;
+  return `<span class="platform-pill ${platform}">${PLATFORM_SVGS[platform]}</span>`;
+}
+
+// Twitch's own badge art from their public CDN; these global badge-version
+// GUIDs are stable. Channel-custom sub art needs an authed API → default star.
+const TWITCH_BADGE_IDS = {
+  broadcaster: "5527c58c-fb7d-422d-b71b-f309dcb85cc1",
+  moderator: "3267646d-33f0-4b17-b3df-f923a41db1d0",
+  vip: "b817aba4-fad8-49e2-b88a-7cc744dfa6ec",
+  partner: "d12a2e27-16f6-41d0-ab77-b780518f00a3",
+  subscriber: "5d9f2208-5dd8-11e7-8513-2ff4adfae661",
+  founder: "511b78a9-ab37-472f-9569-457753bbe7d3",
+  premium: "bbbe0db0-a598-423e-86d0-f9fb98ca1933",
+  turbo: "bd444ec6-8f34-4bf9-91f4-af1e3428d80f",
+  staff: "d97c37bd-a6f5-4c38-8f57-4e4bef88af34",
+  "sub-gifter": "f1d8486f-eb2e-4553-b44f-4d614617afc1",
+};
+
+const BADGES_STORAGE_KEY = "showBadges";
+let showBadges = readBadgesPreference();
+
+function readBadgesPreference() {
+  try {
+    return window.localStorage.getItem(BADGES_STORAGE_KEY) !== "false";
+  } catch (_) {
+    return true;
+  }
+}
+
+function badgesMarkup(message) {
+  if (!showBadges || message.platform !== "twitch" || !message.badges?.length) return "";
+  return message.badges.map((badge) => {
+    const name = String(badge).split("/")[0].toLowerCase();
+    const id = TWITCH_BADGE_IDS[name];
+    if (!id) return "";
+    return `<img class="badge" src="https://static-cdn.jtvnw.net/badges/v1/${id}/1" alt="${escapeHtml(name)}" title="${escapeHtml(name)}">`;
+  }).join("");
 }
 
 // ---------------------------------------------------------------------------
@@ -175,10 +220,37 @@ const EMOTE_IMAGE_URLS = {
   youtube: (id) => id, // YouTube emote ids are complete image URLs
 };
 
+// Third-party Twitch emotes (7TV/BTTV/FFZ), name → url, sent by the hub once
+// per channel. Matching happens here, word by word.
+let thirdPartyEmotes = new Map();
+
+const THIRD_PARTY_EMOTES_STORAGE_KEY = "showThirdPartyEmotes";
+let showThirdPartyEmotes = readThirdPartyEmotesPreference();
+
+function readThirdPartyEmotesPreference() {
+  try {
+    return window.localStorage.getItem(THIRD_PARTY_EMOTES_STORAGE_KEY) !== "false";
+  } catch (_) {
+    return true;
+  }
+}
+
+function emoteImg(url, name) {
+  return `<img class="emote" src="${escapeHtml(url)}" alt="${escapeHtml(name)}" title="${escapeHtml(name)}">`;
+}
+
+function renderPlainText(text, platform) {
+  if (!showThirdPartyEmotes || platform !== "twitch" || !thirdPartyEmotes.size) return linkifyText(text);
+  return text.split(" ").map((word) => {
+    const url = thirdPartyEmotes.get(word);
+    return url ? emoteImg(url, word) : linkifyText(word);
+  }).join(" ");
+}
+
 // Emote begin/end offsets count Unicode code points (Twitch IRC convention),
 // so slice on a code-point array rather than UTF-16 indices.
 function renderMessageText(text, emotes, platform) {
-  if (!emotes || !emotes.length) return linkifyText(text);
+  if (!emotes || !emotes.length) return renderPlainText(text, platform);
   const emoteUrl = EMOTE_IMAGE_URLS[platform] || EMOTE_IMAGE_URLS.twitch;
   const chars = Array.from(text);
   const sorted = [...emotes].sort((a, b) => a.begin - b.begin);
@@ -186,13 +258,13 @@ function renderMessageText(text, emotes, platform) {
   let cursor = 0;
   for (const emote of sorted) {
     if (emote.begin > cursor) {
-      result += linkifyText(chars.slice(cursor, emote.begin).join(""));
+      result += renderPlainText(chars.slice(cursor, emote.begin).join(""), platform);
     }
-    result += `<img class="emote" src="${escapeHtml(emoteUrl(emote.id))}" alt="${escapeHtml(emote.text)}" title="${escapeHtml(emote.text)}">`;
+    result += emoteImg(emoteUrl(emote.id), emote.text);
     cursor = emote.end;
   }
   if (cursor < chars.length) {
-    result += linkifyText(chars.slice(cursor).join(""));
+    result += renderPlainText(chars.slice(cursor).join(""), platform);
   }
   return result;
 }
@@ -230,12 +302,11 @@ function broadcast(payload) {
   syncChannel?.postMessage(payload);
 }
 
-function applyPlatformNames(value) {
-  showPlatformNames = Boolean(value);
-  if (toggleNames) {
-    toggleNames.classList.toggle("active", showPlatformNames);
+function applyShowPlatform(value) {
+  showPlatform = Boolean(value);
+  if (togglePlatform) {
+    togglePlatform.classList.toggle("active", showPlatform);
   }
-  renderStatuses();
   renderMessages();
 }
 
@@ -253,8 +324,16 @@ if (syncChannel) {
         state.messages = [];
         renderMessages();
         break;
-      case "showPlatformNames":
-        applyPlatformNames(payload.value);
+      case "showPlatform":
+        applyShowPlatform(payload.value);
+        break;
+      case "showBadges":
+        showBadges = Boolean(payload.value);
+        renderMessages();
+        break;
+      case "showThirdPartyEmotes":
+        showThirdPartyEmotes = Boolean(payload.value);
+        renderMessages();
         break;
       case "use24hClock":
         use24hClock = Boolean(payload.value);
@@ -268,11 +347,16 @@ if (syncChannel) {
 // Feed rendering
 
 function addMessage(message) {
+  const wasNearBottom = isNearBottom();
   state.messages.push(message);
   if (state.messages.length > MAX_VISIBLE_MESSAGES) {
     state.messages = state.messages.slice(-MAX_VISIBLE_MESSAGES);
   }
   renderMessages();
+  if (!wasNearBottom) {
+    unseenCount += 1;
+    updateScrollButton();
+  }
 }
 
 function markDeleted(predicate) {
@@ -287,9 +371,7 @@ function markDeleted(predicate) {
   renderMessages();
 }
 
-// In overlay mode every card runs the fade-out animation; a negative delay
-// makes rebuilt DOM nodes resume at the right point of their lifetime instead
-// of restarting the countdown on every render.
+// Negative animation-delay lets rebuilt DOM nodes resume their fade mid-life.
 function overlayFadeStyle(message) {
   if (!isOverlay) return "";
   const age = Math.max(Date.now() - new Date(message.timestamp).getTime(), 0);
@@ -311,7 +393,7 @@ function renderMessages() {
     if (message.kind === "system") {
       return `
         <article class="${messageClass} system-notice" data-platform="${message.platform}"${overlayFadeStyle(message)}>
-          <span class="message-topline"><span class="message-time">${formatTime(message.timestamp)}</span> ${platformMarkup(message.platform)}<span class="message-text system-notice-text">${renderMessageText(message.text, message.emotes, message.platform)}</span></span>
+          <span class="message-topline"><span class="message-time">${formatTime(message.timestamp)}</span> ${showPlatform ? platformMarkup(message.platform) : ""}<span class="message-text system-notice-text">${renderMessageText(message.text, message.emotes, message.platform)}</span></span>
         </article>
       `;
     }
@@ -319,7 +401,7 @@ function renderMessages() {
     const authorStyle = readableColor ? `style="color:${readableColor}"` : "";
     return `
       <article class="${messageClass}" data-platform="${message.platform}"${overlayFadeStyle(message)}>
-        <span class="message-topline"><span class="message-time">${formatTime(message.timestamp)}</span> ${platformMarkup(message.platform)}<span class="author-name" ${authorStyle}>${escapeHtml(message.author)}:</span> <span class="message-text">${renderMessageText(message.text, message.emotes, message.platform)}</span></span>
+        <span class="message-topline"><span class="message-time">${formatTime(message.timestamp)}</span> ${showPlatform ? platformMarkup(message.platform) : ""}${badgesMarkup(message)}<span class="author-name" ${authorStyle}>${escapeHtml(message.author)}:</span> <span class="message-text">${renderMessageText(message.text, message.emotes, message.platform)}</span></span>
       </article>
     `;
   }).join("");
@@ -336,8 +418,17 @@ function isNearBottom() {
 }
 
 const scrollBottomBtn = document.getElementById("scroll-bottom");
+let unseenCount = 0;
+
+function updateScrollButton() {
+  scrollBottomBtn.textContent = unseenCount ? `↓ ${unseenCount}` : "↓";
+}
 
 feedEl.addEventListener("scroll", () => {
+  if (isNearBottom()) {
+    unseenCount = 0;
+    updateScrollButton();
+  }
   scrollBottomBtn.classList.toggle("hidden", isNearBottom());
 });
 
@@ -351,9 +442,7 @@ scrollBottomBtn.addEventListener("click", () => {
 function setStatus(platform, dot, stateText, detail, videoId) {
   state.statuses.set(platform, { platform, dot, state: stateText, detail, video_id: videoId });
   renderStatuses();
-  // The YouTube embed depends on the live video id carried by statuses, so
-  // the player may gain/lose that source when one arrives.
-  if (platform === "youtube") renderPlayer();
+  if (platform === "youtube") renderPlayer(); // live video id may have changed
 }
 
 function renderStatuses() {
@@ -451,6 +540,10 @@ class HubConnection {
       case "status":
         setStatus(payload.status.platform, payload.status.dot, payload.status.state, payload.status.detail, payload.status.video_id);
         break;
+      case "emotes":
+        thirdPartyEmotes = new Map(Object.entries(payload.emotes || {}));
+        renderMessages();
+        break;
     }
   }
 }
@@ -459,7 +552,7 @@ class HubConnection {
 // Wiring. Elements that only exist on index.html are guarded so this file can
 // be shared with popout.html.
 
-const toggleNames = document.getElementById("toggle-platform-names");
+const togglePlatform = document.getElementById("toggle-platform");
 const hubConnection = new HubConnection();
 
 function connectFromInputs({ updateUrl = true } = {}) {
@@ -544,8 +637,7 @@ if (clearBtn) {
 const popoutBtn = document.getElementById("popout-chat");
 if (popoutBtn) {
   popoutBtn.addEventListener("click", () => {
-    // Channels ride along in the URL so the popout can be bookmarked or used
-    // as a desktop shortcut / OBS browser source without the main window.
+    // Channels ride along in the URL so the popout works standalone.
     const params = new URLSearchParams();
     for (const platform of PLATFORMS) {
       const channel = channelInputs[platform].value.trim();
@@ -586,34 +678,56 @@ if (toggleClock) {
   });
 }
 
-if (toggleNames) {
-  toggleNames.classList.toggle("active", showPlatformNames);
-  toggleNames.addEventListener("click", () => {
-    showPlatformNames = !showPlatformNames;
-    toggleNames.classList.toggle("active", showPlatformNames);
+const toggleBadges = document.getElementById("toggle-badges");
+if (toggleBadges) {
+  toggleBadges.classList.toggle("active", showBadges);
+  toggleBadges.addEventListener("click", () => {
+    showBadges = !showBadges;
+    toggleBadges.classList.toggle("active", showBadges);
     try {
-      window.localStorage.setItem(PLATFORM_NAMES_STORAGE_KEY, String(showPlatformNames));
+      window.localStorage.setItem(BADGES_STORAGE_KEY, String(showBadges));
     } catch (_) {}
-    renderStatuses();
     renderMessages();
-    broadcast({ type: "showPlatformNames", value: showPlatformNames });
+    broadcast({ type: "showBadges", value: showBadges });
+  });
+}
+
+const toggleEmotes = document.getElementById("toggle-emotes");
+if (toggleEmotes) {
+  toggleEmotes.classList.toggle("active", showThirdPartyEmotes);
+  toggleEmotes.addEventListener("click", () => {
+    showThirdPartyEmotes = !showThirdPartyEmotes;
+    toggleEmotes.classList.toggle("active", showThirdPartyEmotes);
+    try {
+      window.localStorage.setItem(THIRD_PARTY_EMOTES_STORAGE_KEY, String(showThirdPartyEmotes));
+    } catch (_) {}
+    renderMessages();
+    broadcast({ type: "showThirdPartyEmotes", value: showThirdPartyEmotes });
+  });
+}
+
+if (togglePlatform) {
+  togglePlatform.classList.toggle("active", showPlatform);
+  togglePlatform.addEventListener("click", () => {
+    showPlatform = !showPlatform;
+    togglePlatform.classList.toggle("active", showPlatform);
+    try {
+      window.localStorage.setItem(PLATFORM_STORAGE_KEY, String(showPlatform));
+    } catch (_) {}
+    renderMessages();
+    broadcast({ type: "showPlatform", value: showPlatform });
   });
 }
 
 // ---------------------------------------------------------------------------
-// Stream player (popout only): an embedded player docked above the feed,
-// starting muted. Twitch, Kick and YouTube have embed players; TikTok has
-// none. YouTube embeds by live video id, which the server discovers when the
-// chat connects and ships on the status payload — so YouTube only becomes
-// pickable once the channel is actually live. Note: the Twitch embed requires
-// the page to be served over HTTPS (localhost excepted) — plain
-// http://<lan-ip> will show a blank player for Twitch, while the others work.
+// Stream player (popout only): embedded player docked above the feed, muted
+// start. YouTube needs the live video id from statuses; TikTok has no embed.
+// Twitch embeds require HTTPS (localhost excepted).
 
 const PLAYER_STORAGE_KEY = "popoutPlayer";
 const PLAYER_PLATFORMS = ["twitch", "kick", "youtube"];
 
-// Returns the embed URL for a platform, or null when it can't be played
-// right now (no channel connected, or YouTube without a live video id yet).
+// Embed URL for a platform, or null when it can't be played right now.
 function playerEmbedSrc(platform) {
   const channel = playerState.channels[platform];
   if (!channel) return null;
@@ -679,8 +793,7 @@ function renderPlayer() {
     return;
   }
   const src = playerEmbedSrc(playerState.source);
-  // Only swap the iframe when the target actually changed — a reload means a
-  // fresh player (and on Twitch potentially a new pre-roll ad).
+  // Reloading the iframe restarts playback (and Twitch pre-rolls) — skip if unchanged.
   if (playerFrameEl.querySelector("iframe")?.src === src) return;
   playerFrameEl.innerHTML = `<iframe src="${escapeHtml(src)}" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
 }
@@ -723,8 +836,7 @@ function restoreChannels() {
   }
 }
 
-// Subscribes the popout's own hub connection and mirrors the channels into the
-// URL, so the address bar always holds a working standalone link.
+// Subscribes the popout's own hub connection and mirrors channels into the URL.
 function applyPopoutChannels(channels) {
   hubConnection.setChannels(channels);
   playerState.channels = channels;
@@ -752,8 +864,7 @@ if (isPopout) {
     renderPlayer(); // restore the toggle/open state even with nothing to watch
   }
   if (isOverlay) {
-    // Prune messages the fade animation has already hidden so the DOM stays
-    // small during long streams.
+    // Prune messages the fade animation has already hidden.
     setInterval(() => {
       const cutoff = Date.now() - OVERLAY_FADE_MS;
       const kept = state.messages.filter((message) => new Date(message.timestamp).getTime() >= cutoff);
