@@ -8,10 +8,14 @@ the number of unique channels, not the number of users.
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections import deque
 from typing import Protocol
 
+from .emotes import fetch_channel_emotes
 from .models import Message
+
+logger = logging.getLogger(__name__)
 
 RECENT_LIMIT = 100
 LINGER_SECONDS = 30
@@ -53,6 +57,8 @@ class ChannelHandle:
             "detail": "Starting…",
         }
         self.linger_task: asyncio.Task | None = None
+        self.emotes: dict[str, str] | None = None
+        self.emotes_task: asyncio.Task | None = None
 
 
 class Hub:
@@ -78,6 +84,11 @@ class Hub:
         viewer.keys.add(key)
         if created:
             await self.connectors[platform].join(channel)
+        if platform == "twitch":
+            if handle.emotes is not None:
+                await viewer.send(_emotes_payload(handle))
+            elif handle.emotes_task is None:
+                handle.emotes_task = asyncio.create_task(self._load_emotes(handle))
 
     async def unsubscribe(self, viewer: Viewer, key: tuple[str, str]) -> None:
         viewer.keys.discard(key)
@@ -102,7 +113,19 @@ class Hub:
             return
         platform, channel = handle.key
         self.channels.pop(handle.key, None)
+        if handle.emotes_task is not None:
+            handle.emotes_task.cancel()
         await self.connectors[platform].part(channel)
+
+    async def _load_emotes(self, handle: ChannelHandle) -> None:
+        try:
+            handle.emotes = await fetch_channel_emotes(handle.key[1])
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.warning("third-party emotes failed for %s: %s", handle.key[1], exc)
+            handle.emotes = {}
+        await self._broadcast(handle, _emotes_payload(handle))
 
 
     async def publish_message(self, message: Message) -> None:
@@ -157,16 +180,13 @@ class Hub:
             "state": state,
             "detail": detail,
         }
-        # The frontend player embeds YouTube by live video id, which only the
-        # connector knows. Absent on offline/error statuses, so a stale id
-        # never survives a stream ending.
+        # Only on connected statuses, so a stale id never survives a stream ending.
         if video_id:
             handle.status["video_id"] = video_id
         await self._broadcast(handle, {"type": "status", "status": handle.status})
 
     async def _broadcast(self, handle: ChannelHandle, payload: dict) -> None:
         await asyncio.gather(*(viewer.send(payload) for viewer in handle.viewers))
-
 
     def bootstrap_payload(self, viewer: Viewer) -> dict:
         messages: list[dict] = []
@@ -179,3 +199,7 @@ class Hub:
             statuses.append(handle.status)
         messages.sort(key=lambda message: message["timestamp"])
         return {"type": "bootstrap", "messages": messages, "statuses": statuses}
+
+
+def _emotes_payload(handle: ChannelHandle) -> dict:
+    return {"type": "emotes", "channel": handle.key[1], "emotes": handle.emotes or {}}
