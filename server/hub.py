@@ -139,7 +139,13 @@ class Hub:
             await self._broadcast(handle, {"type": "deleted", "ids": ids})
 
     async def publish_status(
-        self, platform: str, channel: str, dot: str, state: str, detail: str = ""
+        self,
+        platform: str,
+        channel: str,
+        dot: str,
+        state: str,
+        detail: str = "",
+        video_id: str | None = None,
     ) -> None:
         handle = self.channels.get((platform, channel))
         if handle is None:
@@ -151,6 +157,11 @@ class Hub:
             "state": state,
             "detail": detail,
         }
+        # The frontend player embeds YouTube by live video id, which only the
+        # connector knows. Absent on offline/error statuses, so a stale id
+        # never survives a stream ending.
+        if video_id:
+            handle.status["video_id"] = video_id
         await self._broadcast(handle, {"type": "status", "status": handle.status})
 
     async def _broadcast(self, handle: ChannelHandle, payload: dict) -> None:
