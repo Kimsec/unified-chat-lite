@@ -115,6 +115,7 @@ class YouTubeChat:
                     await self.hub.publish_status(
                         self.platform, name, "ok", "connected",
                         f"Connected to @{name.lstrip('@')}",
+                        video_id=video_id,
                     )
                     backoff = 5.0
 
