@@ -33,6 +33,8 @@
     <meta name="twitter:image" content="https://unified-chat.com/assets/og-image.png">
 
     <link rel="icon" href="assets/favicon.ico">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/icon-192.png">
     <link rel="stylesheet" href="styles.css">
 
     <script type="application/ld+json">
@@ -118,9 +120,19 @@
                 </div>
                 <div class="settings-rows">
                     <div class="settings-row">
-                        <span class="settings-label">Platform names</span>
-                        <button id="toggle-platform-names" class="switch" type="button"
-                            title="Show platform names in messages"></button>
+                        <span class="settings-label">Platform</span>
+                        <button id="toggle-platform" class="switch" type="button"
+                            title="Show platform icon in messages"></button>
+                    </div>
+                    <div class="settings-row">
+                        <span class="settings-label">User badges</span>
+                        <button id="toggle-badges" class="switch" type="button"
+                            title="Show user badges (mod, sub, VIP...) in messages"></button>
+                    </div>
+                    <div class="settings-row">
+                        <span class="settings-label">7TV/BTTV/FFZ emotes</span>
+                        <button id="toggle-emotes" class="switch" type="button"
+                            title="Show 7TV / BTTV / FFZ emotes in Twitch messages"></button>
                     </div>
                     <div class="settings-row">
                         <span class="settings-label">24-hour clock</span>
@@ -210,11 +222,16 @@
                         <li>Add <strong>&amp;overlay=1</strong> to the popout link and use it as a Browser source</li>
                         <li>Transparent background &mdash; chat floats right on the stream image</li>
                         <li>Messages fade out after 60 s; <strong>&amp;fade=120</strong> changes the lifetime</li>
+                        <li>Tune it: <strong>&amp;size=20</strong> (text px), <strong>&amp;align=right</strong>,
+                            <strong>&amp;max=10</strong> (message count), <strong>&amp;icons=0</strong> (hide
+                            platform icons)</li>
                     </ul>
                 </section>
                 <section>
                     <h3>Good to know</h3>
                     <ul>
+                        <li>Twitch badges and 7TV/BTTV/FFZ emotes show automatically &mdash; toggle them in
+                            Settings</li>
                         <li>Filter chips hide platforms in your view only</li>
                         <li>Deleted messages stay, with a strikethrough</li>
                         <li>The feed keeps the latest 200 messages</li>
