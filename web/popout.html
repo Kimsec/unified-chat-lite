@@ -35,12 +35,19 @@
 </head>
 <body data-mode="popout">
     <div class="app-shell">
+        <div id="player-pane" class="player-pane hidden">
+            <div id="player-frame" class="player-frame"></div>
+        </div>
         <section class="panel feed-panel">
             <div class="feed-wrapper">
                 <div id="feed" class="feed" aria-live="polite"></div>
                 <button id="scroll-bottom" class="scroll-bottom hidden" type="button" title="Scroll to bottom">&darr;</button>
             </div>
         </section>
+        <div class="player-controls">
+            <div id="player-sources" class="player-sources hidden"></div>
+            <button id="player-toggle" class="player-toggle" type="button" title="Show stream player">&#9654;</button>
+        </div>
     </div>
 
     <script src="app.js" defer></script>
