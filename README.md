@@ -17,32 +17,60 @@
 
 ---
 
-- Zero-setup, read-only multi-platform chat viewer.
-- A simplified spin-off of [kimsec/unified-chat](https://github.com/kimsec/unified-chat) — no OAuth, no
-self-hosting per user, no moderation/sending.
+Zero-setup, read-only multistream chat viewer — a simplified spin-off of
+[kimsec/unified-chat](https://github.com/kimsec/unified-chat) with no OAuth,
+no per-user hosting and no moderation/sending.
 
-- Open
-[unified-chat.com](https://unified-chat.com/), type up to four usernames
-(Twitch / Kick / YouTube / TikTok) and watch the aggregated chat.
-- Channels are
-also shareable as links: `https://unified-chat.com/?twitch=channelname&kick=channelname`.
-
+Open [unified-chat.com](https://unified-chat.com/), type up to four usernames
+(Twitch / Kick / YouTube / TikTok) and watch the aggregated chat. Channels are
+shareable as links: `https://unified-chat.com/?twitch=channelname&kick=channelname`.
 
 ## Features
 
 - **Unified feed** — up to four chats in one view, with per-platform filters,
   timestamps and clickable links/emotes.
+- **7TV / BTTV / FFZ emotes** — third-party Twitch emotes render automatically,
+  no browser extension needed.
+- **Twitch badges** — broadcaster, mod, VIP, sub and more, using Twitch's own
+  badge art.
 - **Popout** — chat-only window with your channels in the URL: bookmark it,
   make a desktop shortcut, or share the link — it works without the main page.
 - **Stream player** — press ▶ in the popout to watch Twitch, Kick or YouTube
   (once live) above the chat. Starts muted; platform icons switch source.
 - **OBS overlay** — add `&overlay=1` to the popout link for a transparent
-  browser source; messages fade out after 60 s (tune with `&fade=<seconds>`).
+  browser source with auto-fading messages (see parameters below).
 - **Event notices** — subs, resubs, gift subs, raids and cheers (Twitch),
   subs/gifts/hosts (Kick), Super Chats/Stickers and memberships (YouTube)
   render with a highlight border.
+- **Installable (PWA)** — install it as an app from the browser's address bar.
 - **Efficient** — the server keeps one upstream connection per unique channel
   (not per viewer) and fans out through an internal WebSocket hub.
+
+## Settings
+
+All toggles live in the sidebar, are stored locally in the browser and sync
+live to open popouts/overlays:
+
+| Setting | Default | Does |
+|---|---|---|
+| Platform | on | platform icon in front of each message |
+| User badges | on | Twitch badges (mod, sub, VIP...) |
+| 7TV/BTTV/FFZ emotes | on | third-party emotes in Twitch chats |
+| 24-hour clock | on | 24h vs 12h timestamps |
+
+## OBS overlay parameters
+
+Append to the popout link, e.g.
+`popout.html?twitch=channelname&overlay=1&fade=90&size=18&max=8`:
+
+| Parameter | Default | Does |
+|---|---|---|
+| `overlay=1` | – | enables overlay mode (transparent, chrome-less) |
+| `fade=<s>` | 60 | seconds before a message fades out |
+| `size=<px>` | – | text size |
+| `align=right` | left | right-align messages |
+| `max=<n>` | 200 | max messages on screen |
+| `icons=0` | on | hide platform icons |
 
 ## Privacy
 
