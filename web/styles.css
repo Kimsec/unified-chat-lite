@@ -38,6 +38,7 @@ body {
 }
 
 .app-shell {
+    position: relative;
     max-width: 1320px;
     margin: 0 auto;
     height: 100%;
@@ -236,10 +237,22 @@ h2 {
     cursor: not-allowed;
 }
 
+/* Same quiet style as the Clear chat button, in the "connected" green. */
 .connect-button {
     margin-top: 4px;
     padding: 9px 16px;
-    justify-content: center;
+    border-radius: 10px;
+    border: 1px solid rgba(115, 240, 168, 0.3);
+    background: transparent;
+    color: var(--ok);
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 160ms ease;
+}
+
+.connect-button:hover {
+    background: rgba(115, 240, 168, 0.12);
 }
 
 .input-field {
@@ -394,8 +407,7 @@ h2 {
     flex-wrap: wrap;
 }
 
-.ghost-button,
-.primary-button {
+.ghost-button {
     cursor: pointer;
     border: 0;
     border-radius: 10px;
@@ -403,8 +415,7 @@ h2 {
     transition: transform 160ms ease, opacity 160ms ease, background 160ms ease;
 }
 
-.ghost-button:hover,
-.primary-button:hover {
+.ghost-button:hover {
     transform: translateY(-1px);
 }
 
@@ -558,19 +569,6 @@ h2 {
 .small-button {
     padding: 6px 10px;
     font-size: 0.88rem;
-}
-
-.primary-button {
-    padding: 11px 18px;
-    color: #08111c;
-    background: linear-gradient(135deg, #ff574b 0%, #2fe273 52%, #a14dff 100%);
-    border: 0;
-    font-weight: 700;
-}
-
-.primary-button:hover {
-    background: linear-gradient(135deg, #ff6a5f 0%, #43f184 52%, #b164ff 100%);
-    box-shadow: 0 4px 16px rgba(161, 77, 255, 0.4);
 }
 
 .feed-panel {
@@ -836,4 +834,106 @@ h2 {
     .panel {
         border-radius: 12px;
     }
+}
+
+/* --- Stream player (popout) ------------------------------------------------
+   Docked 16:9 pane above the feed with floating controls in the top-right
+   corner: platform icons to pick the source and a toggle to open/close. */
+
+.player-pane {
+    flex-shrink: 0;
+    background: #000;
+    border-bottom: 1px solid var(--panel-border);
+}
+
+.player-pane.hidden {
+    display: none;
+}
+
+.player-frame iframe {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    max-height: 55vh;
+    border: none;
+}
+
+.player-empty {
+    padding: 26px 16px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.player-controls {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    opacity: 0.55;
+    transition: opacity 160ms ease;
+}
+
+.player-controls:hover {
+    opacity: 1;
+}
+
+.player-sources {
+    display: flex;
+    gap: 6px;
+}
+
+.player-sources.hidden {
+    display: none;
+}
+
+.player-toggle,
+.player-source {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 10px;
+    border: 1px solid var(--panel-border);
+    background: rgba(30, 40, 60, 0.45);
+    color: var(--text);
+    font-size: 0.8rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.player-toggle:hover,
+.player-source:hover {
+    transform: scale(1.1);
+    background: rgba(40, 55, 80, 0.95);
+}
+
+.player-source svg,
+.player-source img {
+    height: 16px;
+    width: auto;
+    pointer-events: none;
+}
+
+.player-source {
+    opacity: 0.55;
+}
+
+.player-source.active {
+    opacity: 1;
+}
+
+.player-source.active[data-platform="twitch"] {
+    border-color: rgba(145, 70, 255, 0.65);
+}
+
+.player-source.active[data-platform="kick"] {
+    border-color: rgba(83, 252, 24, 0.55);
 }
