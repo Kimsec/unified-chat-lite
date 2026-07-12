@@ -607,9 +607,11 @@ h2 {
     bottom: 12px;
     left: 50%;
     transform: translateX(-50%) translateY(0);
-    width: 36px;
+    min-width: 36px;
+    padding: 0 10px;
     height: 36px;
-    border-radius: 50%;
+    border-radius: 999px;
+    white-space: nowrap;
     border: 1px solid var(--panel-border);
     background: rgba(30, 40, 60, 0.9);
     color: var(--text);
@@ -619,7 +621,6 @@ h2 {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0;
     transition: transform 220ms ease, opacity 220ms ease;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     z-index: 10;
@@ -747,6 +748,14 @@ h2 {
     color: var(--muted);
     font-size: 0.82rem;
     margin-right: 4px;
+}
+
+.badge {
+    height: 16px;
+    width: 16px;
+    border-radius: 3px;
+    margin-right: 4px;
+    vertical-align: middle;
 }
 
 .author-name {
@@ -1072,6 +1081,7 @@ html.overlay-mode .feed {
 html.overlay-mode .message-card {
     background: transparent;
     border: none;
+    font-size: var(--overlay-font, 1rem);
     /* No bubble behind the text, so a crisp 1px outline (eight zero-blur
        shadows) keeps it readable over bright stream content without the
        smudged look a blurred drop-shadow gets. */
@@ -1081,7 +1091,24 @@ html.overlay-mode .message-card {
     animation: overlay-fade var(--overlay-fade, 60000ms) linear forwards;
 }
 
+html.overlay-mode .message-text {
+    font-size: calc(var(--overlay-font, 1rem) * 0.93);
+}
+
+html.overlay-mode .badge {
+    width: 1em;
+    height: 1em;
+}
+
 html.overlay-mode .message-time {
+    display: none;
+}
+
+html.overlay-align-right .message-card {
+    text-align: right;
+}
+
+html.overlay-no-icons .platform-pill {
     display: none;
 }
 
