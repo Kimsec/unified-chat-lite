@@ -561,6 +561,89 @@ if (toggleNames) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Stream player (popout only): an embedded player docked above the feed,
+// starting muted. Twitch and Kick have official embed players; YouTube needs
+// the live video id (not the @handle) and TikTok has no embed, so those are
+// left out for now. Note: the Twitch embed requires the page to be served
+// over HTTPS (localhost excepted) — plain http://<lan-ip> will show a blank
+// player for Twitch, while Kick still works.
+
+const PLAYER_STORAGE_KEY = "popoutPlayer";
+const PLAYER_EMBEDS = {
+  twitch: (channel) =>
+    `https://player.twitch.tv/?channel=${encodeURIComponent(channel)}&parent=${encodeURIComponent(window.location.hostname)}&muted=true&autoplay=true`,
+  kick: (channel) => `https://player.kick.com/${encodeURIComponent(channel)}?muted=true&autoplay=true`,
+};
+
+const playerPaneEl = document.getElementById("player-pane");
+const playerFrameEl = document.getElementById("player-frame");
+const playerToggleEl = document.getElementById("player-toggle");
+const playerSourcesEl = document.getElementById("player-sources");
+
+const playerState = { open: false, source: null, channels: {} };
+try {
+  const stored = JSON.parse(window.localStorage.getItem(PLAYER_STORAGE_KEY) || "{}");
+  playerState.open = Boolean(stored.open);
+  playerState.source = stored.source || null;
+} catch (_) {}
+
+function savePlayerState() {
+  try {
+    window.localStorage.setItem(
+      PLAYER_STORAGE_KEY,
+      JSON.stringify({ open: playerState.open, source: playerState.source })
+    );
+  } catch (_) {}
+}
+
+function renderPlayer() {
+  if (!playerPaneEl) return;
+  const available = Object.keys(PLAYER_EMBEDS).filter((platform) => playerState.channels[platform]);
+  if (!available.includes(playerState.source)) {
+    playerState.source = available[0] || null;
+  }
+
+  playerSourcesEl.classList.toggle("hidden", !playerState.open || !available.length);
+  playerSourcesEl.innerHTML = available.map((platform) => `
+    <button class="player-source${platform === playerState.source ? " active" : ""}" data-platform="${platform}"
+      type="button" title="Watch on ${PLATFORM_NAMES[platform]}">${PLATFORM_SVGS[platform]}</button>
+  `).join("");
+
+  playerToggleEl.textContent = playerState.open ? "✕" : "▶";
+  playerToggleEl.title = playerState.open ? "Close stream player" : "Show stream player";
+  playerPaneEl.classList.toggle("hidden", !playerState.open);
+
+  if (!playerState.open) {
+    playerFrameEl.innerHTML = ""; // drop the iframe so playback (and audio) stops
+    return;
+  }
+  if (!playerState.source) {
+    playerFrameEl.innerHTML = `<div class="player-empty">Connect a Twitch or Kick channel to watch the stream here.</div>`;
+    return;
+  }
+  const src = PLAYER_EMBEDS[playerState.source](playerState.channels[playerState.source]);
+  // Only swap the iframe when the target actually changed — a reload means a
+  // fresh player (and on Twitch potentially a new pre-roll ad).
+  if (playerFrameEl.querySelector("iframe")?.src === src) return;
+  playerFrameEl.innerHTML = `<iframe src="${escapeHtml(src)}" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
+}
+
+if (playerToggleEl) {
+  playerToggleEl.addEventListener("click", () => {
+    playerState.open = !playerState.open;
+    savePlayerState();
+    renderPlayer();
+  });
+  playerSourcesEl.addEventListener("click", (event) => {
+    const button = event.target.closest(".player-source");
+    if (!button) return;
+    playerState.source = button.dataset.platform;
+    savePlayerState();
+    renderPlayer();
+  });
+}
+
 function channelsFromLocation() {
   const params = new URLSearchParams(window.location.search);
   let stored = {};
@@ -588,6 +671,8 @@ function restoreChannels() {
 // URL, so the address bar always holds a working standalone link.
 function applyPopoutChannels(channels) {
   hubConnection.setChannels(channels);
+  playerState.channels = channels;
+  renderPlayer();
   const params = new URLSearchParams();
   for (const platform of PLATFORMS) {
     if (channels[platform]) params.set(platform, channels[platform]);
@@ -602,6 +687,8 @@ if (isPopout) {
   const channels = channelsFromLocation();
   if (Object.values(channels).some(Boolean)) {
     applyPopoutChannels(channels);
+  } else {
+    renderPlayer(); // restore the toggle/open state even with nothing to watch
   }
 } else {
   renderStatuses();
