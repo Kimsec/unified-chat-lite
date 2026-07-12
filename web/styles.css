@@ -937,3 +937,159 @@ h2 {
 .player-source.active[data-platform="kick"] {
     border-color: rgba(83, 252, 24, 0.55);
 }
+
+/* --- "More info" overlay ------------------------------------------------ */
+
+.info-button {
+    white-space: nowrap;
+    font-size: 0.85rem;
+}
+
+.info-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(2, 6, 12, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.info-overlay.hidden {
+    display: none;
+}
+
+.info-dialog {
+    width: 100%;
+    max-width: 560px;
+    max-height: min(80vh, 640px);
+    display: flex;
+    flex-direction: column;
+    animation: fade-in 180ms ease;
+}
+
+.info-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px 0;
+}
+
+.info-close {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--muted);
+    font-size: 0.8rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 160ms ease, color 160ms ease;
+}
+
+.info-close:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--text);
+}
+
+.info-body {
+    padding: 10px 20px 20px;
+    overflow-y: auto;
+    display: grid;
+    gap: 14px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(124, 149, 184, 0.35) transparent;
+}
+
+.info-body h3 {
+    margin: 0 0 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+}
+
+.info-body ul {
+    margin: 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 5px;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    color: var(--text);
+}
+
+.info-body li::marker {
+    color: var(--muted);
+}
+
+/* --- OBS overlay mode (popout.html?overlay=1) ------------------------------
+   Transparent, chrome-less popout variant for capturing chat directly in the
+   stream image. Cards fade out after --overlay-fade (default 30s). */
+
+html.overlay-mode,
+html.overlay-mode body {
+    background: transparent;
+}
+
+html.overlay-mode .feed-panel {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+html.overlay-mode .scroll-bottom,
+html.overlay-mode .player-pane,
+html.overlay-mode .player-controls,
+html.overlay-mode .empty-state {
+    display: none;
+}
+
+html.overlay-mode .feed {
+    scrollbar-width: none;
+}
+
+html.overlay-mode .feed::-webkit-scrollbar {
+    display: none;
+}
+
+/* Bottom-anchored like normal stream chat: the column grows and shrinks at
+   the top, so an expiring card's removal never moves the messages below. */
+html.overlay-mode .feed {
+    justify-content: flex-end;
+}
+
+html.overlay-mode .message-card {
+    background: transparent;
+    border: none;
+    /* No bubble behind the text, so a crisp 1px outline (eight zero-blur
+       shadows) keeps it readable over bright stream content without the
+       smudged look a blurred drop-shadow gets. */
+    text-shadow:
+        1px 0 0 #000, -1px 0 0 #000, 0 1px 0 #000, 0 -1px 0 #000,
+        1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000;
+    animation: overlay-fade var(--overlay-fade, 60000ms) linear forwards;
+}
+
+html.overlay-mode .message-time {
+    display: none;
+}
+
+@keyframes overlay-fade {
+    0%, 90% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}
