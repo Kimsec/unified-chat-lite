@@ -28,14 +28,21 @@ self-hosting per user, no moderation/sending.
 also shareable as links: `https://unified-chat.com/?twitch=channelname&kick=channelname`.
 
 
-The server keeps **one upstream connection per unique channel** (not per
-viewer) and broadcasts to all connected viewers through an internal WebSocket
-hub.
+## Features
 
-Messages with `kind: "system"` are event notices rendered with a highlight
-border: subs, resubs, gift subs, raids and cheers (Twitch `USERNOTICE` +
-`bits` tag), subs/gifts/hosts (Kick Pusher events), and Super Chats, Super
-Stickers, memberships and gifted memberships (YouTube InnerTube renderers).
+- **Unified feed** — up to four chats in one view, with per-platform filters,
+  timestamps and clickable links/emotes.
+- **Popout** — chat-only window with your channels in the URL: bookmark it,
+  make a desktop shortcut, or share the link — it works without the main page.
+- **Stream player** — press ▶ in the popout to watch Twitch, Kick or YouTube
+  (once live) above the chat. Starts muted; platform icons switch source.
+- **OBS overlay** — add `&overlay=1` to the popout link for a transparent
+  browser source; messages fade out after 60 s (tune with `&fade=<seconds>`).
+- **Event notices** — subs, resubs, gift subs, raids and cheers (Twitch),
+  subs/gifts/hosts (Kick), Super Chats/Stickers and memberships (YouTube)
+  render with a highlight border.
+- **Efficient** — the server keeps one upstream connection per unique channel
+  (not per viewer) and fans out through an internal WebSocket hub.
 
 ## Privacy
 
