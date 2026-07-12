@@ -30,11 +30,7 @@ also shareable as links: `https://unified-chat.com/?twitch=channelname&kick=chan
 
 The server keeps **one upstream connection per unique channel** (not per
 viewer) and broadcasts to all connected viewers through an internal WebSocket
-hub. All platforms are normalized into one message model:
-
-```json
-{ "platform": "twitch", "author": "...", "color": "#abc123", "badges": [], "text": "...", "timestamp": 0, "kind": "chat" }
-```
+hub.
 
 Messages with `kind: "system"` are event notices rendered with a highlight
 border: subs, resubs, gift subs, raids and cheers (Twitch `USERNOTICE` +
