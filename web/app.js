@@ -1,14 +1,3 @@
-// Unified Chat Lite — step 2: the frontend subscribes to our own WebSocket
-// hub (/ws), which keeps one upstream connection per unique channel and fans
-// out normalized messages for every platform.
-// Shared by index.html (main window, owns the hub connection) and popout.html
-// (feed-only window). The popout never opens its own connection: it asks the
-// main window for a bootstrap over a BroadcastChannel and then receives live
-// messages/deletions/settings on the same channel.
-//
-// Normalized message model shared by all platforms:
-// { platform, id, channel, author, color, badges, text, emotes, timestamp, deleted }
-
 const isPopout = document.body.dataset.mode === "popout";
 
 const state = {
@@ -218,9 +207,9 @@ function formatTime(timestamp) {
 }
 
 // ---------------------------------------------------------------------------
-// Cross-window sync (main window <-> popouts) over a BroadcastChannel.
-// Popouts send "hello"; the main window answers with a bootstrap snapshot and
-// then everyone receives incremental events.
+// Cross-window sync (main window -> popouts) over a BroadcastChannel.
+// Popouts feed themselves from their own hub connection; the main window only
+// pushes channel changes and settings so open popouts follow along.
 
 const syncChannel = typeof BroadcastChannel !== "undefined"
   ? new BroadcastChannel("unified-chat-lite-sync")
@@ -228,22 +217,6 @@ const syncChannel = typeof BroadcastChannel !== "undefined"
 
 function broadcast(payload) {
   syncChannel?.postMessage(payload);
-}
-
-function bootstrapPayload() {
-  return {
-    type: "bootstrap",
-    messages: state.messages,
-    showPlatformNames,
-    use24hClock,
-  };
-}
-
-function applyBootstrap(payload) {
-  state.messages = payload.messages.slice(-MAX_VISIBLE_MESSAGES);
-  use24hClock = payload.use24hClock !== false;
-  applyPlatformNames(payload.showPlatformNames);
-  renderMessages();
 }
 
 function applyPlatformNames(value) {
@@ -259,23 +232,11 @@ if (syncChannel) {
   syncChannel.addEventListener("message", (event) => {
     const payload = event.data;
     if (!payload || typeof payload !== "object") return;
-
-    if (!isPopout) {
-      if (payload.type === "hello") {
-        broadcast(bootstrapPayload());
-      }
-      return;
-    }
+    if (!isPopout) return;
 
     switch (payload.type) {
-      case "bootstrap":
-        applyBootstrap(payload);
-        break;
-      case "message":
-        addMessage(payload.message, { broadcast: false });
-        break;
-      case "deleted":
-        markDeleted((m) => payload.ids.includes(m.id), { broadcast: false });
+      case "channels":
+        applyPopoutChannels(payload.channels);
         break;
       case "clear":
         state.messages = [];
@@ -295,18 +256,15 @@ if (syncChannel) {
 // ---------------------------------------------------------------------------
 // Feed rendering
 
-function addMessage(message, { broadcast: shouldBroadcast = true } = {}) {
+function addMessage(message) {
   state.messages.push(message);
   if (state.messages.length > MAX_VISIBLE_MESSAGES) {
     state.messages = state.messages.slice(-MAX_VISIBLE_MESSAGES);
   }
   renderMessages();
-  if (!isPopout && shouldBroadcast) {
-    broadcast({ type: "message", message });
-  }
 }
 
-function markDeleted(predicate, { broadcast: shouldBroadcast = true } = {}) {
+function markDeleted(predicate) {
   const deletedIds = [];
   for (const message of state.messages) {
     if (predicate(message) && !message.deleted) {
@@ -316,9 +274,6 @@ function markDeleted(predicate, { broadcast: shouldBroadcast = true } = {}) {
   }
   if (!deletedIds.length) return;
   renderMessages();
-  if (!isPopout && shouldBroadcast) {
-    broadcast({ type: "deleted", ids: deletedIds });
-  }
 }
 
 function renderMessages() {
@@ -463,7 +418,6 @@ class HubConnection {
         }
         renderStatuses(); // even when statuses is empty (everything disconnected)
         renderMessages();
-        broadcast(bootstrapPayload());
         break;
       case "message":
         addMessage(payload.message);
@@ -483,7 +437,7 @@ class HubConnection {
 // be shared with popout.html.
 
 const toggleNames = document.getElementById("toggle-platform-names");
-const hubConnection = isPopout ? null : new HubConnection();
+const hubConnection = new HubConnection();
 
 function connectFromInputs({ updateUrl = true } = {}) {
   // An empty field is sent as "" — the server diffs the desired set and
@@ -497,6 +451,7 @@ function connectFromInputs({ updateUrl = true } = {}) {
   if (!hasAny && !hubConnection.socket) return;
   hubConnection.setChannels(channels);
   updateClearButtons(channels);
+  broadcast({ type: "channels", channels });
   try {
     window.localStorage.setItem("channels", JSON.stringify(channels));
   } catch (_) {}
@@ -566,7 +521,15 @@ if (clearBtn) {
 const popoutBtn = document.getElementById("popout-chat");
 if (popoutBtn) {
   popoutBtn.addEventListener("click", () => {
-    window.open("popout.html", "unified-chat-lite-popout", "width=500,height=800,resizable=yes,scrollbars=no");
+    // Channels ride along in the URL so the popout can be bookmarked or used
+    // as a desktop shortcut / OBS browser source without the main window.
+    const params = new URLSearchParams();
+    for (const platform of PLATFORMS) {
+      const channel = channelInputs[platform].value.trim();
+      if (channel) params.set(platform, channel);
+    }
+    const query = params.toString();
+    window.open(`popout.html${query ? `?${query}` : ""}`, "unified-chat-lite-popout", "width=500,height=800,resizable=yes,scrollbars=no");
   });
 }
 
@@ -598,7 +561,7 @@ if (toggleNames) {
   });
 }
 
-function restoreChannels() {
+function channelsFromLocation() {
   const params = new URLSearchParams(window.location.search);
   let stored = {};
   try {
@@ -606,18 +569,40 @@ function restoreChannels() {
   } catch (_) {}
   // A shared link (URL params) wins over what this browser last watched.
   const fromUrl = PLATFORMS.some((platform) => params.has(platform));
+  return Object.fromEntries(
+    PLATFORMS.map((platform) => [platform, ((fromUrl ? params.get(platform) : stored[platform]) || "").trim()])
+  );
+}
+
+function restoreChannels() {
+  const channels = channelsFromLocation();
   for (const platform of PLATFORMS) {
-    channelInputs[platform].value = (fromUrl ? params.get(platform) : stored[platform]) || "";
+    channelInputs[platform].value = channels[platform];
   }
   if (PLATFORMS.some((platform) => channelInputs[platform].value)) {
     connectFromInputs({ updateUrl: false });
   }
 }
 
+// Subscribes the popout's own hub connection and mirrors the channels into the
+// URL, so the address bar always holds a working standalone link.
+function applyPopoutChannels(channels) {
+  hubConnection.setChannels(channels);
+  const params = new URLSearchParams();
+  for (const platform of PLATFORMS) {
+    if (channels[platform]) params.set(platform, channels[platform]);
+  }
+  const query = params.toString();
+  window.history.replaceState(null, "", query ? `?${query}` : window.location.pathname);
+}
+
 renderMessages();
 
 if (isPopout) {
-  broadcast({ type: "hello" });
+  const channels = channelsFromLocation();
+  if (Object.values(channels).some(Boolean)) {
+    applyPopoutChannels(channels);
+  }
 } else {
   renderStatuses();
   restoreChannels();
