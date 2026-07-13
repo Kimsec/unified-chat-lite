@@ -105,10 +105,17 @@ class TwitchChat:
         self._source_cache: dict[str, dict] = {}
 
     async def join(self, channel: str) -> None:
-        self.channels.add(channel)
         await self.hub.publish_status(
             self.platform, channel, "warn", "connecting", f"Connecting to #{channel}…"
         )
+        # IRC happily "joins" nonexistent channels, so verify first. None
+        # (lookup failed) joins anyway rather than blocking a real channel.
+        if await self._channel_exists(channel) is False:
+            await self.hub.publish_status(
+                self.platform, channel, "error", "not found", f"No Twitch channel named “{channel}”"
+            )
+            return
+        self.channels.add(channel)
         if self._task is None or self._task.done():
             self._task = asyncio.create_task(self._run())
         elif self._ws is not None:
@@ -192,6 +199,21 @@ class TwitchChat:
         if source_id not in self._source_cache:
             self._source_cache[source_id] = await self._lookup_user(source_id)
         return self._source_cache[source_id]
+
+    async def _channel_exists(self, login: str) -> bool | None:
+        query = {
+            "query": "query($login: String){user(login: $login){id}}",
+            "variables": {"login": login},
+        }
+        try:
+            async with AsyncSession(impersonate="chrome") as session:
+                response = await session.post(
+                    GQL_URL, json=query, headers={"Client-ID": GQL_CLIENT_ID}, timeout=10
+                )
+                return ((response.json().get("data") or {}).get("user")) is not None
+        except Exception as exc:
+            logger.warning("twitch channel lookup failed for %s: %s", login, exc)
+            return None
 
     async def _lookup_user(self, user_id: str) -> dict:
         query = {
