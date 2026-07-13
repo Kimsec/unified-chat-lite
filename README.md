@@ -43,9 +43,13 @@ shareable as links: `https://unified-chat.com/?twitch=channelname&kick=channelna
   your browser, never on the server.
 - **OBS overlay** — swap `/popout` for `/overlay` in the link for a transparent
   browser source with auto-fading messages (see parameters below).
-- **Event notices** — subs, resubs, gift subs, raids and cheers (Twitch),
-  subs/gifts/hosts (Kick), Super Chats/Stickers and memberships (YouTube)
-  render with a highlight border.
+- **Event notices** — subs, resubs, gift subs, raids and cheers with animated
+  cheermotes (Twitch), subs/gift subs/hosts/Kicks gifts (Kick), Super
+  Chats/Stickers and memberships (YouTube) render with a highlight border.
+- **Hype Train** — a live progress bar (level + %) appears when a Twitch hype
+  train is rolling, and fades out when it ends.
+- **Shared chat** — in Twitch dual streams, messages from the partner's chat
+  show that streamer's avatar.
 - **Installable (PWA)** — both the main page and the popout install as apps
   from the browser's address bar; the popout opens with your last used channels.
 - **Efficient** — the server keeps one upstream connection per unique channel
