@@ -504,6 +504,18 @@ h2 {
     color: var(--text);
 }
 
+.font-size-value {
+    color: var(--muted);
+    font-size: 0.76rem;
+    margin-left: 4px;
+}
+
+.font-slider {
+    width: 92px;
+    accent-color: var(--ok);
+    cursor: pointer;
+}
+
 .switch {
     position: relative;
     width: 36px;
@@ -643,6 +655,12 @@ h2 {
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: var(--chat-font, 1rem);
+}
+
+.message-card.mention {
+    background: rgba(255, 92, 138, 0.1);
+    border-color: rgba(255, 92, 138, 0.35);
 }
 
 .message-card:last-child {
@@ -776,7 +794,7 @@ h2 {
 
 .message-text {
     word-break: break-word;
-    font-size: 0.93rem;
+    font-size: calc(var(--chat-font, 1rem) * 0.93);
 }
 
 .emote {
