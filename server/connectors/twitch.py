@@ -15,6 +15,7 @@ import time
 import websockets
 from curl_cffi.requests import AsyncSession
 
+from ..hypetrain import HypeTrainPoller
 from ..models import Message, prefix_text as _prefix_text
 
 logger = logging.getLogger(__name__)
@@ -103,6 +104,7 @@ class TwitchChat:
         self._task: asyncio.Task | None = None
         self._backoff = 1.0
         self._source_cache: dict[str, dict] = {}
+        self._hype = HypeTrainPoller(hub)
 
     async def join(self, channel: str) -> None:
         await self.hub.publish_status(
@@ -116,6 +118,7 @@ class TwitchChat:
             )
             return
         self.channels.add(channel)
+        self._hype.start(channel)
         if self._task is None or self._task.done():
             self._task = asyncio.create_task(self._run())
         elif self._ws is not None:
@@ -123,6 +126,7 @@ class TwitchChat:
 
     async def part(self, channel: str) -> None:
         self.channels.discard(channel)
+        self._hype.stop(channel)
         if self._ws is not None:
             await self._send(f"PART #{channel}")
 
@@ -264,6 +268,7 @@ class TwitchChat:
             kind=kind,
             avatar_url=source.get("avatar_url", ""),
             source_name=source.get("name", ""),
+            bits=int(bits) if bits and bits.isdigit() else 0,
         ))
 
     async def _handle_usernotice(self, parsed: dict, channel: str) -> None:
