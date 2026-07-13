@@ -235,17 +235,50 @@ function emoteImg(url, name) {
   return `<img class="emote" src="${escapeHtml(url)}" alt="${escapeHtml(name)}" title="${escapeHtml(name)}">`;
 }
 
-function renderPlainText(text, platform) {
-  if (!showThirdPartyEmotes || platform !== "twitch" || !thirdPartyEmotes.size) return linkifyText(text);
+// Global cheermotes from Twitch's open CDN, only applied to messages that
+// actually carried bits.
+const CHEERMOTE_PREFIXES = new Set([
+  "cheer", "cheerwhal", "corgo", "uni", "showlove", "party", "seemsgood", "pride",
+  "kappa", "frankerz", "heyguys", "dansgame", "trihard", "kreygasm", "4head",
+  "swiftrage", "notlikethis", "failfish", "vohiyo", "pjsalt", "mrdestructoid",
+  "bday", "ripcheer", "shamrock",
+]);
+const CHEER_TIERS = [
+  [10000, "#f43021"],
+  [5000, "#0099fe"],
+  [1000, "#1db2a5"],
+  [100, "#9c3ee8"],
+  [1, "#979797"],
+];
+
+function cheermoteMarkup(word) {
+  const match = /^(.+?)(\d+)$/.exec(word);
+  if (!match) return null;
+  const prefix = match[1].toLowerCase();
+  if (!CHEERMOTE_PREFIXES.has(prefix)) return null;
+  const amount = Number(match[2]);
+  const [tier, color] = CHEER_TIERS.find(([min]) => amount >= min) || CHEER_TIERS[CHEER_TIERS.length - 1];
+  const src = `https://d3aqoihi2n8ty8.cloudfront.net/actions/${prefix}/dark/animated/${tier}/1.gif`;
+  return `<img class="emote" src="${src}" alt="${escapeHtml(word)}" title="${escapeHtml(word)}"><span class="cheer-amount" style="color:${color}">${amount}</span>`;
+}
+
+function renderPlainText(text, platform, bits) {
+  if (platform !== "twitch") return linkifyText(text);
+  const useEmotes = showThirdPartyEmotes && thirdPartyEmotes.size;
+  if (!useEmotes && !bits) return linkifyText(text);
   return text.split(" ").map((word) => {
-    const url = thirdPartyEmotes.get(word);
+    if (bits) {
+      const cheer = cheermoteMarkup(word);
+      if (cheer) return cheer;
+    }
+    const url = useEmotes ? thirdPartyEmotes.get(word) : undefined;
     return url ? emoteImg(url, word) : linkifyText(word);
   }).join(" ");
 }
 
 
-function renderMessageText(text, emotes, platform) {
-  if (!emotes || !emotes.length) return renderPlainText(text, platform);
+function renderMessageText(text, emotes, platform, bits = 0) {
+  if (!emotes || !emotes.length) return renderPlainText(text, platform, bits);
   const emoteUrl = EMOTE_IMAGE_URLS[platform] || EMOTE_IMAGE_URLS.twitch;
   const chars = Array.from(text);
   const sorted = [...emotes].sort((a, b) => a.begin - b.begin);
@@ -253,13 +286,13 @@ function renderMessageText(text, emotes, platform) {
   let cursor = 0;
   for (const emote of sorted) {
     if (emote.begin > cursor) {
-      result += renderPlainText(chars.slice(cursor, emote.begin).join(""), platform);
+      result += renderPlainText(chars.slice(cursor, emote.begin).join(""), platform, bits);
     }
     result += emoteImg(emoteUrl(emote.id), emote.text);
     cursor = emote.end;
   }
   if (cursor < chars.length) {
-    result += renderPlainText(chars.slice(cursor).join(""), platform);
+    result += renderPlainText(chars.slice(cursor).join(""), platform, bits);
   }
   return result;
 }
@@ -436,7 +469,7 @@ function renderMessages() {
     if (message.kind === "system") {
       return `
         <article class="${messageClass} system-notice" data-platform="${message.platform}"${overlayFadeStyle(message)}>
-          <span class="message-topline"><span class="message-time">${formatTime(message.timestamp)}</span> ${showPlatform ? platformMarkup(message.platform) : ""}${sourceAvatarMarkup(message)}<span class="message-text system-notice-text">${renderMessageText(message.text, message.emotes, message.platform)}</span></span>
+          <span class="message-topline"><span class="message-time">${formatTime(message.timestamp)}</span> ${showPlatform ? platformMarkup(message.platform) : ""}${sourceAvatarMarkup(message)}<span class="message-text system-notice-text">${renderMessageText(message.text, message.emotes, message.platform, message.bits)}</span></span>
         </article>
       `;
     }
@@ -444,7 +477,7 @@ function renderMessages() {
     const authorStyle = readableColor ? `style="color:${readableColor}"` : "";
     return `
       <article class="${messageClass}" data-platform="${message.platform}"${overlayFadeStyle(message)}>
-        <span class="message-topline"><span class="message-time">${formatTime(message.timestamp)}</span> ${showPlatform ? platformMarkup(message.platform) : ""}${sourceAvatarMarkup(message)}${badgesMarkup(message)}<span class="author-name" ${authorStyle}>${escapeHtml(message.author)}:</span> <span class="message-text">${renderMessageText(message.text, message.emotes, message.platform)}</span></span>
+        <span class="message-topline"><span class="message-time">${formatTime(message.timestamp)}</span> ${showPlatform ? platformMarkup(message.platform) : ""}${sourceAvatarMarkup(message)}${badgesMarkup(message)}<span class="author-name" ${authorStyle}>${escapeHtml(message.author)}:</span> <span class="message-text">${renderMessageText(message.text, message.emotes, message.platform, message.bits)}</span></span>
       </article>
     `;
   }).join("");
@@ -478,6 +511,48 @@ feedEl.addEventListener("scroll", () => {
 scrollBottomBtn.addEventListener("click", () => {
   feedEl.scrollTop = feedEl.scrollHeight;
 });
+
+let hypeTrainEndTimer = null;
+
+function resetHypeTrainBar() {
+  if (hypeTrainEndTimer) {
+    clearTimeout(hypeTrainEndTimer);
+    hypeTrainEndTimer = null;
+  }
+  const bar = document.getElementById("hype-train-bar");
+  if (!bar) return;
+  bar.classList.add("hidden");
+  bar.setAttribute("aria-hidden", "true");
+}
+
+function handleHypeTrain(data) {
+  if (isOverlay) return;
+  if (!data) {
+    resetHypeTrainBar();
+    return;
+  }
+  if (hypeTrainEndTimer) {
+    clearTimeout(hypeTrainEndTimer);
+    hypeTrainEndTimer = null;
+  }
+  renderHypeTrain(data);
+  if (data.phase === "end") {
+    hypeTrainEndTimer = window.setTimeout(resetHypeTrainBar, data.hide_after_ms ?? 5000);
+  }
+}
+
+function renderHypeTrain(data) {
+  const bar = document.getElementById("hype-train-bar");
+  if (!bar) return;
+  bar.classList.remove("hidden");
+  bar.setAttribute("aria-hidden", "false");
+  bar.dataset.phase = data.phase || "progress";
+  document.getElementById("ht-level").textContent = data.level || 1;
+  const goal = data.goal > 0 ? data.goal : 1;
+  const pct = Math.min(Math.round(((data.progress || 0) / goal) * 100), 100);
+  document.getElementById("ht-progress-text").textContent = data.phase === "end" ? `Ended (${pct}%)` : `${pct}%`;
+  document.getElementById("ht-fill").style.width = `${pct}%`;
+}
 
 function setStatus(platform, dot, stateText, detail, videoId) {
   state.statuses.set(platform, { platform, dot, state: stateText, detail, video_id: videoId });
@@ -580,6 +655,9 @@ class HubConnection {
         thirdPartyEmotes = new Map(Object.entries(payload.emotes || {}));
         renderMessages();
         break;
+      case "hype_train":
+        handleHypeTrain(payload);
+        break;
     }
   }
 }
@@ -598,6 +676,7 @@ function connectFromInputs({ updateUrl = true } = {}) {
   hubConnection.setChannels(channels);
   updateClearButtons(channels);
   updateMentionRegex(channels);
+  resetHypeTrainBar();
   broadcast({ type: "channels", channels });
   try {
     window.localStorage.setItem("channels", JSON.stringify(channels));
@@ -1059,6 +1138,7 @@ function applyPopoutChannels(channels) {
   hubConnection.setChannels(channels);
   playerState.channels = channels;
   updateMentionRegex(channels);
+  resetHypeTrainBar();
   renderPlayer();
   // Start from the current query so non-channel params (overlay, fade) survive.
   const params = new URLSearchParams(window.location.search);
