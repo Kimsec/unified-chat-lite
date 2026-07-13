@@ -90,6 +90,14 @@ function readBadgesPreference() {
   }
 }
 
+// Twitch Shared Chat: round avatar of the partner streamer whose chat the
+// message came from.
+function sourceAvatarMarkup(message) {
+  if (!message.avatar_url) return "";
+  const title = message.source_name ? `${message.source_name}'s chat` : "Shared chat source";
+  return `<img class="source-streamer-avatar" src="${escapeHtml(message.avatar_url)}" alt="" title="${escapeHtml(title)}">`;
+}
+
 function badgesMarkup(message) {
   if (!showBadges || message.platform !== "twitch" || !message.badges?.length) return "";
   return message.badges.map((badge) => {
@@ -393,7 +401,7 @@ function renderMessages() {
     if (message.kind === "system") {
       return `
         <article class="${messageClass} system-notice" data-platform="${message.platform}"${overlayFadeStyle(message)}>
-          <span class="message-topline"><span class="message-time">${formatTime(message.timestamp)}</span> ${showPlatform ? platformMarkup(message.platform) : ""}<span class="message-text system-notice-text">${renderMessageText(message.text, message.emotes, message.platform)}</span></span>
+          <span class="message-topline"><span class="message-time">${formatTime(message.timestamp)}</span> ${showPlatform ? platformMarkup(message.platform) : ""}${sourceAvatarMarkup(message)}<span class="message-text system-notice-text">${renderMessageText(message.text, message.emotes, message.platform)}</span></span>
         </article>
       `;
     }
@@ -401,7 +409,7 @@ function renderMessages() {
     const authorStyle = readableColor ? `style="color:${readableColor}"` : "";
     return `
       <article class="${messageClass}" data-platform="${message.platform}"${overlayFadeStyle(message)}>
-        <span class="message-topline"><span class="message-time">${formatTime(message.timestamp)}</span> ${showPlatform ? platformMarkup(message.platform) : ""}${badgesMarkup(message)}<span class="author-name" ${authorStyle}>${escapeHtml(message.author)}:</span> <span class="message-text">${renderMessageText(message.text, message.emotes, message.platform)}</span></span>
+        <span class="message-topline"><span class="message-time">${formatTime(message.timestamp)}</span> ${showPlatform ? platformMarkup(message.platform) : ""}${sourceAvatarMarkup(message)}${badgesMarkup(message)}<span class="author-name" ${authorStyle}>${escapeHtml(message.author)}:</span> <span class="message-text">${renderMessageText(message.text, message.emotes, message.platform)}</span></span>
       </article>
     `;
   }).join("");
