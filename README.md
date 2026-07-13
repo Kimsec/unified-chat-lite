@@ -108,3 +108,7 @@ python -m venv .venv
 ```
 
 Then open http://localhost:8000 — the port is arbitrary; pick any free one.
+
+## License
+
+[MIT](LICENSE)
