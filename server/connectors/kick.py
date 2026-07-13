@@ -78,6 +78,8 @@ class KickChat:
         self.hub = hub
         self.rooms: dict[str, int] = {}  # slug -> chatroom id
         self.slugs: dict[int, str] = {}  # chatroom id -> slug
+        self.channel_ids: dict[str, int] = {}  # slug -> channel id
+        self.channel_slugs: dict[int, str] = {}  # channel id -> slug
         self._ws = None
         self._task: asyncio.Task | None = None
         self._backoff = 1.0
@@ -87,38 +89,46 @@ class KickChat:
             self.platform, slug, "warn", "connecting", f"Looking up {slug}…"
         )
         try:
-            chatroom_id = await self._lookup_chatroom_id(slug)
+            ids = await self._lookup_ids(slug)
         except Exception as exc:
             logger.warning("kick channel lookup failed for %s: %s", slug, exc)
             await self.hub.publish_status(
                 self.platform, slug, "error", "error", f"Channel lookup failed: {exc}"
             )
             return
-        if chatroom_id is None:
+        if ids is None:
             await self.hub.publish_status(
                 self.platform, slug, "error", "not found", f"No Kick channel named “{slug}”"
             )
             return
 
+        chatroom_id, channel_id = ids
         self.rooms[slug] = chatroom_id
         self.slugs[chatroom_id] = slug
+        if channel_id:
+            self.channel_ids[slug] = channel_id
+            self.channel_slugs[channel_id] = slug
         if self._task is None or self._task.done():
             self._task = asyncio.create_task(self._run())
         elif self._ws is not None:
-            await self._subscribe(chatroom_id)
+            await self._subscribe(slug)
 
     async def part(self, slug: str) -> None:
         chatroom_id = self.rooms.pop(slug, None)
         if chatroom_id is None:
             return
         self.slugs.pop(chatroom_id, None)
+        channel_id = self.channel_ids.pop(slug, None)
+        if channel_id:
+            self.channel_slugs.pop(channel_id, None)
         if self._ws is not None:
-            await self._send({
-                "event": "pusher:unsubscribe",
-                "data": {"channel": f"chatrooms.{chatroom_id}.v2"},
-            })
+            names = [f"chatrooms.{chatroom_id}.v2"]
+            if channel_id:
+                names += [f"channel.{channel_id}", f"channel_{channel_id}"]
+            for name in names:
+                await self._send({"event": "pusher:unsubscribe", "data": {"channel": name}})
 
-    async def _lookup_chatroom_id(self, slug: str) -> int | None:
+    async def _lookup_ids(self, slug: str) -> tuple[int, int | None] | None:
         async with AsyncSession(impersonate="chrome") as session:
             response = await session.get(CHANNEL_API.format(slug=slug), timeout=20)
             if response.status_code == 404:
@@ -126,7 +136,10 @@ class KickChat:
             if response.status_code >= 400:
                 raise RuntimeError(f"kick.com returned {response.status_code}")
             data = response.json()
-        return (data.get("chatroom") or {}).get("id")
+        chatroom_id = (data.get("chatroom") or {}).get("id")
+        if chatroom_id is None:
+            return None
+        return chatroom_id, data.get("id")
 
     async def _send(self, payload: dict) -> None:
         try:
@@ -134,19 +147,21 @@ class KickChat:
         except Exception:
             pass  # the read loop notices the dead socket and reconnects
 
-    async def _subscribe(self, chatroom_id: int) -> None:
-        await self._send({
-            "event": "pusher:subscribe",
-            "data": {"auth": "", "channel": f"chatrooms.{chatroom_id}.v2"},
-        })
+    async def _subscribe(self, slug: str) -> None:
+        names = [f"chatrooms.{self.rooms[slug]}.v2"] if slug in self.rooms else []
+        channel_id = self.channel_ids.get(slug)
+        if channel_id:
+            names += [f"channel.{channel_id}", f"channel_{channel_id}"]
+        for name in names:
+            await self._send({"event": "pusher:subscribe", "data": {"auth": "", "channel": name}})
 
     async def _run(self) -> None:
         while self.rooms:
             try:
                 async with websockets.connect(PUSHER_URL) as ws:
                     self._ws = ws
-                    for chatroom_id in list(self.rooms.values()):
-                        await self._subscribe(chatroom_id)
+                    for slug in list(self.rooms):
+                        await self._subscribe(slug)
                     self._backoff = 1.0
                     async for frame in ws:
                         await self._handle_frame(str(frame))
@@ -175,9 +190,20 @@ class KickChat:
             await self._send({"event": "pusher:pong", "data": "{}"})
             return
 
-        match = re.match(r"chatrooms\.(\d+)\.", frame.get("channel") or "")
+        channel_name = frame.get("channel") or ""
+        match = re.match(r"chatrooms\.(\d+)\.", channel_name)
         slug = self.slugs.get(int(match.group(1))) if match else None
         if slug is None:
+            alt = re.match(r"channel[._](\d+)$", channel_name)
+            alt_slug = self.channel_slugs.get(int(alt.group(1))) if alt else None
+            if alt_slug and event == "KicksGifted":
+                try:
+                    data = json.loads(frame.get("data") or "{}")
+                except json.JSONDecodeError:
+                    return
+                await self._handle_kicks(alt_slug, data)
+            elif alt_slug and not event.startswith("pusher"):
+                logger.debug("kick channel event on %s: %s %s", alt_slug, event, str(frame.get("data"))[:500])
             return
 
         if event == "pusher_internal:subscription_succeeded":
@@ -206,6 +232,29 @@ class KickChat:
             except json.JSONDecodeError:
                 return
             await self._handle_system_event(slug, event, data)
+        elif event.startswith("App\\"):
+            logger.debug("unhandled kick event on %s: %s %s", slug, event, str(frame.get("data"))[:500])
+
+    async def _handle_kicks(self, slug: str, data: dict) -> None:
+        sender = data.get("sender") or {}
+        gift = data.get("gift") or {}
+        author = str(sender.get("username") or "Someone")
+        base = f"{author} sent {gift.get('name') or 'a gift'} ({gift.get('amount') or 0} Kicks)"
+        user_msg = str(data.get("message") or "").strip()
+        text = f"{base}: {user_msg}" if user_msg else f"{base}!"
+        await self.hub.publish_message(Message(
+            platform=self.platform,
+            id=str(data.get("gift_transaction_id") or f"{time.time()}-{random.random()}"),
+            channel=slug,
+            author=author,
+            color=str(sender.get("username_color") or ""),
+            badges=[],
+            text=text,
+            emotes=[],
+            timestamp=int(time.time() * 1000),
+            author_login=author.lower(),
+            kind="system",
+        ))
 
     async def _handle_system_event(self, slug: str, event: str, data: dict) -> None:
         if event == SUB_EVENT:
