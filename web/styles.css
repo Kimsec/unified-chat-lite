@@ -1099,7 +1099,7 @@ html.overlay-mode .message-card {
     text-shadow:
         1px 0 0 #000, -1px 0 0 #000, 0 1px 0 #000, 0 -1px 0 #000,
         1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000;
-    animation: overlay-fade var(--overlay-fade, 60000ms) linear forwards;
+    animation: overlay-fade 2500ms linear forwards;
 }
 
 html.overlay-mode .message-text {
@@ -1124,10 +1124,10 @@ html.overlay-no-icons .platform-pill {
 }
 
 @keyframes overlay-fade {
-    0%, 90% {
+    from {
         opacity: 1;
     }
-    100% {
+    to {
         opacity: 0;
     }
 }
