@@ -135,9 +135,20 @@
                             title="Show 7TV / BTTV / FFZ emotes in Twitch messages"></button>
                     </div>
                     <div class="settings-row">
+                        <span class="settings-label">Highlight mentions</span>
+                        <button id="toggle-mentions" class="switch" type="button"
+                            title="Highlight messages that @-mention a connected channel"></button>
+                    </div>
+                    <div class="settings-row">
                         <span class="settings-label">24-hour clock</span>
                         <button id="toggle-clock" class="switch" type="button"
                             title="Use 24-hour time format"></button>
+                    </div>
+                    <div class="settings-row">
+                        <span class="settings-label">Text size <span id="font-size-value"
+                                class="font-size-value">16px</span></span>
+                        <input id="font-size" class="font-slider" type="range" min="12" max="24" step="1" value="16"
+                            title="Chat text size">
                     </div>
                     <div class="settings-row">
                         <span class="settings-label">Alert sounds</span>
@@ -260,6 +271,7 @@
                     <ul>
                         <li>Twitch badges and 7TV/BTTV/FFZ emotes show automatically &mdash; toggle them in
                             Settings</li>
+                        <li>Messages that @-mention a connected channel are highlighted</li>
                         <li>Filter chips hide platforms in your view only</li>
                         <li>Deleted messages stay, with a strikethrough</li>
                         <li>The feed keeps the latest 200 messages</li>
