@@ -856,9 +856,7 @@ h2 {
     }
 }
 
-/* --- Stream player (popout) ------------------------------------------------
-   Docked 16:9 pane above the feed with floating controls in the top-right
-   corner: platform icons to pick the source and a toggle to open/close. */
+/* --- Stream player (popout) --- */
 
 .player-pane {
     flex-shrink: 0;
@@ -958,6 +956,147 @@ h2 {
     border-color: rgba(83, 252, 24, 0.55);
 }
 
+/* --- Alert sounds --- */
+
+.alerts-edit {
+    min-width: 30px;
+    height: 24px;
+    padding: 0 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8rem;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 160ms ease;
+}
+
+.alerts-edit:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.alerts-editor {
+    display: grid;
+    gap: 8px;
+    padding: 2px 0 4px;
+}
+
+.alerts-editor.hidden {
+    display: none;
+}
+
+.alerts-rows {
+    display: grid;
+    gap: 6px;
+}
+
+.alerts-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.alerts-input {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 0.78rem;
+}
+
+.alerts-input.invalid {
+    border-color: rgba(255, 123, 123, 0.75);
+}
+
+.alerts-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.alerts-add-row {
+    padding: 5px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: color 160ms ease, background 160ms ease;
+}
+
+.alerts-add-row:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.alerts-apply {
+    padding: 5px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(115, 240, 168, 0.3);
+    background: transparent;
+    color: var(--ok);
+    font: inherit;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: background 160ms ease;
+}
+
+.alerts-apply:hover {
+    background: rgba(115, 240, 168, 0.12);
+}
+
+.alerts-hint {
+    margin: 0;
+    font-size: 0.72rem;
+    color: var(--muted);
+}
+
+/* In normal flow, so it pushes the feed down instead of covering it. */
+.alerts-unlock {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 12px;
+    border: none;
+    border-bottom: 1px solid rgba(255, 209, 102, 0.25);
+    background: rgba(255, 209, 102, 0.1);
+    color: var(--warn);
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 160ms ease;
+}
+
+.alerts-unlock:hover {
+    background: rgba(255, 209, 102, 0.18);
+}
+
+.alerts-unlock.hidden {
+    display: none;
+}
+
+.alert-frames {
+    position: absolute;
+    top: 0;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
+.alert-frames iframe {
+    width: 1px;
+    height: 1px;
+    border: 0;
+}
+
 /* --- "More info" overlay ------------------------------------------------ */
 
 .info-button {
@@ -1052,9 +1191,7 @@ h2 {
     color: var(--muted);
 }
 
-/* --- OBS overlay mode (/overlay) --------------------------------------------
-   Transparent, chrome-less popout variant for capturing chat directly in the
-   stream image. Cards fade out after --overlay-fade (default 30s). */
+/* --- OBS overlay mode (/overlay) --- */
 
 html.overlay-mode,
 html.overlay-mode body {
@@ -1083,8 +1220,7 @@ html.overlay-mode .feed::-webkit-scrollbar {
     display: none;
 }
 
-/* Bottom-anchored like normal stream chat: the column grows and shrinks at
-   the top, so an expiring card's removal never moves the messages below. */
+/* Bottom-anchored, so an expiring card's removal never moves the rest. */
 html.overlay-mode .feed {
     justify-content: flex-end;
 }
@@ -1093,9 +1229,7 @@ html.overlay-mode .message-card {
     background: transparent;
     border: none;
     font-size: var(--overlay-font, 1rem);
-    /* No bubble behind the text, so a crisp 1px outline (eight zero-blur
-       shadows) keeps it readable over bright stream content without the
-       smudged look a blurred drop-shadow gets. */
+    /* Crisp 1px outline (zero-blur shadows) for readability on stream content. */
     text-shadow:
         1px 0 0 #000, -1px 0 0 #000, 0 1px 0 #000, 0 -1px 0 #000,
         1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000;
