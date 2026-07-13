@@ -1,10 +1,10 @@
 const isPopout = document.body.dataset.mode === "popout";
 
-// Overlay mode (popout.html?overlay=1): a transparent, chrome-less variant of
-// the popout for capturing chat directly in the stream image via an OBS
-// browser source. Messages fade out after fade=<seconds> (default 60).
+// Overlay mode (/overlay): a transparent, chrome-less variant of the popout
+// for capturing chat directly in the stream image via an OBS browser source.
+// Messages fade out after fade=<seconds> (default 60).
 const pageParams = new URLSearchParams(window.location.search);
-const isOverlay = isPopout && pageParams.has("overlay");
+const isOverlay = isPopout && (window.location.pathname === "/overlay" || pageParams.has("overlay"));
 const OVERLAY_FADE_MS = Math.max(Number(pageParams.get("fade")) || 60, 5) * 1000;
 const overlayOptions = {
   size: Math.min(Math.max(Number(pageParams.get("size")) || 0, 0), 64),
@@ -652,7 +652,7 @@ if (popoutBtn) {
       if (channel) params.set(platform, channel);
     }
     const query = params.toString();
-    window.open(`popout.html${query ? `?${query}` : ""}`, "unified-chat-lite-popout", "width=500,height=800,resizable=yes,scrollbars=no");
+    window.open(`popout${query ? `?${query}` : ""}`, "unified-chat-lite-popout", "width=500,height=800,resizable=yes,scrollbars=no");
   });
 }
 
