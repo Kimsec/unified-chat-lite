@@ -13,12 +13,15 @@ import re
 import time
 
 import websockets
+from curl_cffi.requests import AsyncSession
 
 from ..models import Message, prefix_text as _prefix_text
 
 logger = logging.getLogger(__name__)
 
 TWITCH_IRC_URL = "wss://irc-ws.chat.twitch.tv:443"
+GQL_URL = "https://gql.twitch.tv/gql"
+GQL_CLIENT_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko"  # Twitch's own web client (anonymous)
 
 TAG_ESCAPES = {"\\:": ";", "\\s": " ", "\\\\": "\\", "\\r": "\r", "\\n": "\n"}
 TAG_ESCAPE_RE = re.compile(r"\\[:s\\rn]")
@@ -99,6 +102,7 @@ class TwitchChat:
         self._ws = None
         self._task: asyncio.Task | None = None
         self._backoff = 1.0
+        self._source_cache: dict[str, dict] = {}
 
     async def join(self, channel: str) -> None:
         self.channels.add(channel)
@@ -179,12 +183,42 @@ class TwitchChat:
             if self._ws is not None:
                 await self._ws.close()
 
+    async def _source_broadcaster(self, tags: dict[str, str]) -> dict:
+        """Shared Chat: messages from the partner streamer's chat carry a
+        source-room-id differing from the watched channel's room-id."""
+        source_id = tags.get("source-room-id", "")
+        if not source_id or source_id == tags.get("room-id"):
+            return {}
+        if source_id not in self._source_cache:
+            self._source_cache[source_id] = await self._lookup_user(source_id)
+        return self._source_cache[source_id]
+
+    async def _lookup_user(self, user_id: str) -> dict:
+        query = {
+            "query": "query($id: ID){user(id: $id){displayName profileImageURL(width: 70)}}",
+            "variables": {"id": user_id},
+        }
+        try:
+            async with AsyncSession(impersonate="chrome") as session:
+                response = await session.post(
+                    GQL_URL, json=query, headers={"Client-ID": GQL_CLIENT_ID}, timeout=10
+                )
+                user = (response.json().get("data") or {}).get("user") or {}
+                return {
+                    "name": user.get("displayName") or "",
+                    "avatar_url": user.get("profileImageURL") or "",
+                }
+        except Exception as exc:
+            logger.warning("twitch shared-chat lookup failed for %s: %s", user_id, exc)
+            return {}
+
     async def _handle_privmsg(self, parsed: dict, channel: str) -> None:
         tags = parsed["tags"]
         login = (parsed["prefix"] or "").split("!")[0] or "unknown"
         author = tags.get("display-name") or login
         text = parsed["trailing"] or ""
         emotes = parse_emotes(tags.get("emotes", ""), text)
+        source = await self._source_broadcaster(tags)
 
         # Cheers arrive as ordinary PRIVMSGs with a bits tag; surface them as
         # system notices so they stand out like subs/gifts do.
@@ -206,6 +240,8 @@ class TwitchChat:
             timestamp=int(tags.get("tmi-sent-ts") or time.time() * 1000),
             author_login=login.lower(),
             kind=kind,
+            avatar_url=source.get("avatar_url", ""),
+            source_name=source.get("name", ""),
         ))
 
     async def _handle_usernotice(self, parsed: dict, channel: str) -> None:
@@ -225,6 +261,7 @@ class TwitchChat:
             return
 
         login = tags.get("login") or (parsed["prefix"] or "").split("!")[0] or "unknown"
+        source = await self._source_broadcaster(tags)
         await self.hub.publish_message(Message(
             platform=self.platform,
             id=tags.get("id") or f"{time.time()}-{random.random()}",
@@ -237,4 +274,6 @@ class TwitchChat:
             timestamp=int(tags.get("tmi-sent-ts") or time.time() * 1000),
             author_login=login.lower(),
             kind="system",
+            avatar_url=source.get("avatar_url", ""),
+            source_name=source.get("name", ""),
         ))
