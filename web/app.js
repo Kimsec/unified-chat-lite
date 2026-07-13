@@ -6,6 +6,7 @@ const isPopout = document.body.dataset.mode === "popout";
 const pageParams = new URLSearchParams(window.location.search);
 const isOverlay = isPopout && (window.location.pathname === "/overlay" || pageParams.has("overlay"));
 const OVERLAY_FADE_MS = Math.max(Number(pageParams.get("fade")) || 60, 5) * 1000;
+const OVERLAY_FADE_OUT_MS = 2500; // the fade-out itself, at the end of the lifetime
 const overlayOptions = {
   size: Math.min(Math.max(Number(pageParams.get("size")) || 0, 0), 64),
   alignRight: pageParams.get("align") === "right",
@@ -15,7 +16,6 @@ const overlayOptions = {
 if (isOverlay) {
   const root = document.documentElement;
   root.classList.add("overlay-mode");
-  root.style.setProperty("--overlay-fade", `${OVERLAY_FADE_MS}ms`);
   if (overlayOptions.size) root.style.setProperty("--overlay-font", `${overlayOptions.size}px`);
   if (overlayOptions.alignRight) root.classList.add("overlay-align-right");
   if (!overlayOptions.icons) root.classList.add("overlay-no-icons");
@@ -379,11 +379,12 @@ function markDeleted(predicate) {
   renderMessages();
 }
 
-// Negative animation-delay lets rebuilt DOM nodes resume their fade mid-life.
+// The delay positions each card in its lifetime: positive = still waiting to
+// fade, negative = resumes mid-fade even after a DOM rebuild.
 function overlayFadeStyle(message) {
   if (!isOverlay) return "";
   const age = Math.max(Date.now() - new Date(message.timestamp).getTime(), 0);
-  return ` style="animation-delay: -${age}ms"`;
+  return ` style="animation-delay: ${OVERLAY_FADE_MS - OVERLAY_FADE_OUT_MS - age}ms"`;
 }
 
 function renderMessages() {
