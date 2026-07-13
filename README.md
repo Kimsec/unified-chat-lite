@@ -37,6 +37,9 @@ shareable as links: `https://unified-chat.com/?twitch=channelname&kick=channelna
   make a desktop shortcut, or share the link — it works without the main page.
 - **Stream player** — press ▶ in the popout to watch Twitch, Kick or YouTube
   (once live) above the chat. Starts muted; platform icons switch source.
+- **Alert sounds** — paste your StreamElements/Streamlabs alert overlay URLs
+  under Settings → Alert sounds and they play in the popout. Stored only in
+  your browser, never on the server.
 - **OBS overlay** — swap `/popout` for `/overlay` in the link for a transparent
   browser source with auto-fading messages (see parameters below).
 - **Event notices** — subs, resubs, gift subs, raids and cheers (Twitch),
@@ -58,6 +61,7 @@ live to open popouts/overlays:
 | User badges | on | Twitch badges (mod, sub, VIP...) |
 | 7TV/BTTV/FFZ emotes | on | third-party emotes in Twitch chats |
 | 24-hour clock | on | 24h vs 12h timestamps |
+| Alert sounds | – | alert overlay URLs whose sounds play in the popout |
 
 ## OBS overlay parameters
 
