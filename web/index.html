@@ -139,6 +139,20 @@
                         <button id="toggle-clock" class="switch" type="button"
                             title="Use 24-hour time format"></button>
                     </div>
+                    <div class="settings-row">
+                        <span class="settings-label">Alert sounds</span>
+                        <button id="alerts-edit" class="alerts-edit" type="button"
+                            title="Add alert sound overlays (StreamElements etc.)">+ Add</button>
+                    </div>
+                    <div id="alerts-editor" class="alerts-editor hidden">
+                        <div id="alerts-rows" class="alerts-rows"></div>
+                        <div class="alerts-actions">
+                            <button id="alerts-add-row" class="alerts-add-row" type="button">+ Add another</button>
+                            <button id="alerts-apply" class="alerts-apply" type="button">Apply</button>
+                        </div>
+                        <p class="alerts-hint">Alert overlay URLs (StreamElements etc.) play their sound in the
+                            popout. Stored only in this browser.</p>
+                    </div>
                     <button id="clear-messages" class="settings-action" type="button">Clear chat</button>
                 </div>
             </section>
@@ -216,6 +230,17 @@
                         <li>In the popout, press <strong>&#9654;</strong> (top right) &mdash; starts muted</li>
                         <li>Click the platform icons to switch source</li>
                         <li>YouTube appears once the channel is live</li>
+                    </ul>
+                </section>
+                <section>
+                    <h3>Alert sounds</h3>
+                    <ul>
+                        <li>Settings &rarr; Alert sounds: paste your alert overlay URL (StreamElements etc.) &mdash;
+                            its sound plays in the popout</li>
+                        <li>Click <strong>&#128266; Enable alert sound</strong> once per popout window (browser
+                            rule)</li>
+                        <li>Alert URLs hold your secret token &mdash; remove <strong>&amp;alerts=</strong> before
+                            sharing a popout link</li>
                     </ul>
                 </section>
                 <section>
