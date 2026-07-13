@@ -59,6 +59,7 @@ class ChannelHandle:
         self.linger_task: asyncio.Task | None = None
         self.emotes: dict[str, str] | None = None
         self.emotes_task: asyncio.Task | None = None
+        self.hype_train: dict | None = None
 
 
 class Hub:
@@ -89,6 +90,8 @@ class Hub:
                 await viewer.send(_emotes_payload(handle))
             elif handle.emotes_task is None:
                 handle.emotes_task = asyncio.create_task(self._load_emotes(handle))
+            if handle.hype_train:
+                await viewer.send({"type": "hype_train", "channel": channel, **handle.hype_train})
 
     async def unsubscribe(self, viewer: Viewer, key: tuple[str, str]) -> None:
         viewer.keys.discard(key)
@@ -160,6 +163,13 @@ class Hub:
             ids.append(message.id)
         if ids:
             await self._broadcast(handle, {"type": "deleted", "ids": ids})
+
+    async def publish_hype_train(self, channel: str, payload: dict) -> None:
+        handle = self.channels.get(("twitch", channel))
+        if handle is None:
+            return
+        handle.hype_train = None if payload.get("phase") == "end" else payload
+        await self._broadcast(handle, {"type": "hype_train", "channel": channel, **payload})
 
     async def publish_status(
         self,
