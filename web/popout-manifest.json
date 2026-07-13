@@ -1,9 +1,9 @@
 {
-    "id": "/popout.html",
+    "id": "/popout",
     "name": "Unified Chat Lite — Popout",
     "short_name": "Unified Chat",
     "description": "Your multistream chat feed, ready for the next stream.",
-    "start_url": "/popout.html",
+    "start_url": "/popout",
     "display": "standalone",
     "background_color": "#09111f",
     "theme_color": "#09111f",
