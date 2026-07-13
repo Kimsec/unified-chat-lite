@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -17,6 +18,15 @@ logging.basicConfig(level=logging.INFO)
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 SUPPORTED_PLATFORMS = ("twitch", "kick", "youtube", "tiktok")
+
+# Names go straight into IRC commands and URLs, so reject anything outside
+# each platform's own username charset.
+CHANNEL_PATTERNS = {
+    "twitch": re.compile(r"^[a-z0-9_]{1,25}$"),
+    "kick": re.compile(r"^[a-z0-9_-]{1,50}$"),
+    "youtube": re.compile(r"^@?[a-z0-9._-]{1,50}$"),
+    "tiktok": re.compile(r"^@?[a-z0-9._]{1,50}$"),
+}
 
 app = FastAPI(title="Unified Chat Lite")
 hub = Hub()
@@ -45,8 +55,11 @@ async def handle_subscribe(viewer: Viewer, channels: dict) -> None:
     desired = set()
     for platform in SUPPORTED_PLATFORMS:
         channel = channels.get(platform)
-        if isinstance(channel, str) and channel.strip():
-            desired.add((platform, channel.strip().lstrip("#").lower()))
+        if not isinstance(channel, str):
+            continue
+        channel = channel.strip().lstrip("#").lower()
+        if channel and CHANNEL_PATTERNS[platform].match(channel):
+            desired.add((platform, channel))
 
     for key in viewer.keys - desired:
         await hub.unsubscribe(viewer, key)
