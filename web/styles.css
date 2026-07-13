@@ -1052,7 +1052,7 @@ h2 {
     color: var(--muted);
 }
 
-/* --- OBS overlay mode (popout.html?overlay=1) ------------------------------
+/* --- OBS overlay mode (/overlay) --------------------------------------------
    Transparent, chrome-less popout variant for capturing chat directly in the
    stream image. Cards fade out after --overlay-fade (default 30s). */
 
