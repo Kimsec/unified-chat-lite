@@ -16,6 +16,10 @@ class Message:
     timestamp: int = 0  # unix ms
     deleted: bool = False
     kind: str = "chat"  # "chat" | "system" (subs, gifts, raids, superchats, …)
+    # Twitch Shared Chat: avatar + name of the partner streamer whose chat the
+    # message came from. Empty for messages from the watched channel itself.
+    avatar_url: str = ""
+    source_name: str = ""
     # Internal only: lowercase login for CLEARCHAT (ban/timeout) matching on
     # Twitch, where display names can differ from logins.
     author_login: str = ""
