@@ -28,7 +28,8 @@ shareable as links: `https://unified-chat.com/?twitch=channelname&kick=channelna
 ## Features
 
 - **Unified feed** — up to four chats in one view, with per-platform filters,
-  timestamps and clickable links/emotes.
+  timestamps and clickable links/emotes. Messages that @-mention a connected
+  channel are highlighted.
 - **7TV / BTTV / FFZ emotes** — third-party Twitch emotes render automatically,
   no browser extension needed.
 - **Twitch badges** — broadcaster, mod, VIP, sub and more, using Twitch's own
@@ -60,7 +61,9 @@ live to open popouts/overlays:
 | Platform | on | platform icon in front of each message |
 | User badges | on | Twitch badges (mod, sub, VIP...) |
 | 7TV/BTTV/FFZ emotes | on | third-party emotes in Twitch chats |
+| Highlight mentions | on | highlight messages @-mentioning a connected channel |
 | 24-hour clock | on | 24h vs 12h timestamps |
+| Text size | 16 px | chat text size (main page + popout) |
 | Alert sounds | – | alert overlay URLs whose sounds play in the popout |
 
 ## OBS overlay parameters
