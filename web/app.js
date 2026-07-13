@@ -264,6 +264,48 @@ function renderMessageText(text, emotes, platform) {
   return result;
 }
 
+const CHAT_FONT_STORAGE_KEY = "chatFontPx";
+let chatFontPx = readChatFontPreference();
+
+function readChatFontPreference() {
+  try {
+    return Number(window.localStorage.getItem(CHAT_FONT_STORAGE_KEY)) || 0;
+  } catch (_) {
+    return 0;
+  }
+}
+
+function applyChatFont(px) {
+  chatFontPx = px;
+  if (px) {
+    document.documentElement.style.setProperty("--chat-font", `${px}px`);
+  } else {
+    document.documentElement.style.removeProperty("--chat-font");
+  }
+}
+
+applyChatFont(chatFontPx);
+
+// Messages @-mentioning a connected channel get highlighted.
+const MENTIONS_STORAGE_KEY = "highlightMentions";
+let highlightMentions = readMentionsPreference();
+let mentionRegex = null;
+
+function readMentionsPreference() {
+  try {
+    return window.localStorage.getItem(MENTIONS_STORAGE_KEY) !== "false";
+  } catch (_) {
+    return true;
+  }
+}
+
+function updateMentionRegex(channels) {
+  const names = Object.values(channels)
+    .filter(Boolean)
+    .map((name) => name.replace(/^@/, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  mentionRegex = names.length ? new RegExp(`@(?:${names.join("|")})\\b`, "i") : null;
+}
+
 // 24-hour clock by default; switchable in Settings.
 const CLOCK_STORAGE_KEY = "use24hClock";
 let use24hClock = readClockPreference();
@@ -326,6 +368,13 @@ if (syncChannel) {
         showThirdPartyEmotes = Boolean(payload.value);
         renderMessages();
         break;
+      case "chatFont":
+        applyChatFont(Number(payload.value) || 0);
+        break;
+      case "highlightMentions":
+        highlightMentions = Boolean(payload.value);
+        renderMessages();
+        break;
       case "alertUrls":
         applyPopoutAlerts(payload.urls);
         break;
@@ -380,7 +429,10 @@ function renderMessages() {
   const wasNearBottom = isNearBottom();
 
   feedEl.innerHTML = visibleMessages.map((message) => {
-    const messageClass = message.deleted ? "message-card deleted" : "message-card";
+    let messageClass = message.deleted ? "message-card deleted" : "message-card";
+    if (highlightMentions && message.kind !== "system" && mentionRegex?.test(message.text)) {
+      messageClass += " mention";
+    }
     if (message.kind === "system") {
       return `
         <article class="${messageClass} system-notice" data-platform="${message.platform}"${overlayFadeStyle(message)}>
@@ -545,6 +597,7 @@ function connectFromInputs({ updateUrl = true } = {}) {
   if (!hasAny && !hubConnection.socket) return;
   hubConnection.setChannels(channels);
   updateClearButtons(channels);
+  updateMentionRegex(channels);
   broadcast({ type: "channels", channels });
   try {
     window.localStorage.setItem("channels", JSON.stringify(channels));
@@ -635,6 +688,38 @@ if (infoOverlayEl && openInfoBtn) {
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !infoOverlayEl.classList.contains("hidden")) closeInfo();
+  });
+}
+
+const toggleMentions = document.getElementById("toggle-mentions");
+if (toggleMentions) {
+  toggleMentions.classList.toggle("active", highlightMentions);
+  toggleMentions.addEventListener("click", () => {
+    highlightMentions = !highlightMentions;
+    toggleMentions.classList.toggle("active", highlightMentions);
+    try {
+      window.localStorage.setItem(MENTIONS_STORAGE_KEY, String(highlightMentions));
+    } catch (_) {}
+    renderMessages();
+    broadcast({ type: "highlightMentions", value: highlightMentions });
+  });
+}
+
+const fontSlider = document.getElementById("font-size");
+if (fontSlider) {
+  const valueEl = document.getElementById("font-size-value");
+  const syncValue = () => {
+    valueEl.textContent = `${fontSlider.value}px`;
+  };
+  fontSlider.value = chatFontPx || 16;
+  syncValue();
+  fontSlider.addEventListener("input", () => {
+    applyChatFont(Number(fontSlider.value));
+    syncValue();
+    try {
+      window.localStorage.setItem(CHAT_FONT_STORAGE_KEY, String(chatFontPx));
+    } catch (_) {}
+    broadcast({ type: "chatFont", value: chatFontPx });
   });
 }
 
@@ -973,6 +1058,7 @@ function restoreChannels() {
 function applyPopoutChannels(channels) {
   hubConnection.setChannels(channels);
   playerState.channels = channels;
+  updateMentionRegex(channels);
   renderPlayer();
   // Start from the current query so non-channel params (overlay, fade) survive.
   const params = new URLSearchParams(window.location.search);
