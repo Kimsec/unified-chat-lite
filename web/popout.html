@@ -40,6 +40,8 @@
 </head>
 <body data-mode="popout">
     <div class="app-shell">
+        <button id="alerts-unlock" class="alerts-unlock hidden" type="button"
+            title="Browsers block sound until you interact with the page">&#128266; Enable alert sound</button>
         <div id="player-pane" class="player-pane hidden">
             <div id="player-frame" class="player-frame"></div>
         </div>
@@ -53,6 +55,7 @@
             <div id="player-sources" class="player-sources hidden"></div>
             <button id="player-toggle" class="player-toggle" type="button" title="Show stream player">&#9654;</button>
         </div>
+        <div id="alert-frames" class="alert-frames" aria-hidden="true"></div>
     </div>
 
     <script src="app.js" defer></script>
