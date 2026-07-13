@@ -37,7 +37,7 @@ shareable as links: `https://unified-chat.com/?twitch=channelname&kick=channelna
   make a desktop shortcut, or share the link — it works without the main page.
 - **Stream player** — press ▶ in the popout to watch Twitch, Kick or YouTube
   (once live) above the chat. Starts muted; platform icons switch source.
-- **OBS overlay** — add `&overlay=1` to the popout link for a transparent
+- **OBS overlay** — swap `/popout` for `/overlay` in the link for a transparent
   browser source with auto-fading messages (see parameters below).
 - **Event notices** — subs, resubs, gift subs, raids and cheers (Twitch),
   subs/gifts/hosts (Kick), Super Chats/Stickers and memberships (YouTube)
@@ -61,12 +61,11 @@ live to open popouts/overlays:
 
 ## OBS overlay parameters
 
-Append to the popout link, e.g.
-`popout.html?twitch=channelname&overlay=1&fade=90&size=18&max=8`:
+Append to the overlay link, e.g.
+`/overlay?twitch=channelname&fade=90&size=18&max=8`:
 
 | Parameter | Default | Does |
 |---|---|---|
-| `overlay=1` | – | enables overlay mode (transparent, chrome-less) |
 | `fade=<s>` | 60 | seconds before a message fades out |
 | `size=<px>` | – | text size |
 | `align=right` | left | right-align messages |
