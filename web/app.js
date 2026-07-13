@@ -1,12 +1,10 @@
 const isPopout = document.body.dataset.mode === "popout";
 
-// Overlay mode (/overlay): a transparent, chrome-less variant of the popout
-// for capturing chat directly in the stream image via an OBS browser source.
-// Messages fade out after fade=<seconds> (default 60).
+// Overlay mode (/overlay): transparent OBS variant with auto-fading messages.
 const pageParams = new URLSearchParams(window.location.search);
 const isOverlay = isPopout && (window.location.pathname === "/overlay" || pageParams.has("overlay"));
 const OVERLAY_FADE_MS = Math.max(Number(pageParams.get("fade")) || 60, 5) * 1000;
-const OVERLAY_FADE_OUT_MS = 2500; // the fade-out itself, at the end of the lifetime
+const OVERLAY_FADE_OUT_MS = 2500;
 const overlayOptions = {
   size: Math.min(Math.max(Number(pageParams.get("size")) || 0, 0), 64),
   alignRight: pageParams.get("align") === "right",
@@ -64,8 +62,6 @@ function platformMarkup(platform) {
   return `<span class="platform-pill ${platform}">${PLATFORM_SVGS[platform]}</span>`;
 }
 
-// Twitch's own badge art from their public CDN; these global badge-version
-// GUIDs are stable. Channel-custom sub art needs an authed API → default star.
 const TWITCH_BADGE_IDS = {
   broadcaster: "5527c58c-fb7d-422d-b71b-f309dcb85cc1",
   moderator: "3267646d-33f0-4b17-b3df-f923a41db1d0",
@@ -90,8 +86,6 @@ function readBadgesPreference() {
   }
 }
 
-// Twitch Shared Chat: round avatar of the partner streamer whose chat the
-// message came from.
 function sourceAvatarMarkup(message) {
   if (!message.avatar_url) return "";
   const title = message.source_name ? `${message.source_name}'s chat` : "Shared chat source";
@@ -108,9 +102,6 @@ function badgesMarkup(message) {
   }).join("");
 }
 
-// ---------------------------------------------------------------------------
-// Author colors: platform colors are chosen against arbitrary backgrounds, so
-// lighten them until they meet a minimum contrast ratio against our dark bg.
 
 const AUTHOR_COLOR_BG = "#09111f";
 const MIN_AUTHOR_CONTRAST = 4.0;
@@ -183,8 +174,6 @@ function ensureReadableColor(value) {
   return rgbToHex(mixTowardWhite(color, high));
 }
 
-// ---------------------------------------------------------------------------
-// Text rendering
 
 function escapeHtml(value) {
   return String(value)
@@ -228,8 +217,7 @@ const EMOTE_IMAGE_URLS = {
   youtube: (id) => id, // YouTube emote ids are complete image URLs
 };
 
-// Third-party Twitch emotes (7TV/BTTV/FFZ), name → url, sent by the hub once
-// per channel. Matching happens here, word by word.
+// Third-party Twitch emotes (7TV/BTTV/FFZ), name → url, sent by the hub.
 let thirdPartyEmotes = new Map();
 
 const THIRD_PARTY_EMOTES_STORAGE_KEY = "showThirdPartyEmotes";
@@ -255,8 +243,7 @@ function renderPlainText(text, platform) {
   }).join(" ");
 }
 
-// Emote begin/end offsets count Unicode code points (Twitch IRC convention),
-// so slice on a code-point array rather than UTF-16 indices.
+
 function renderMessageText(text, emotes, platform) {
   if (!emotes || !emotes.length) return renderPlainText(text, platform);
   const emoteUrl = EMOTE_IMAGE_URLS[platform] || EMOTE_IMAGE_URLS.twitch;
@@ -297,11 +284,7 @@ function formatTime(timestamp) {
   });
 }
 
-// ---------------------------------------------------------------------------
 // Cross-window sync (main window -> popouts) over a BroadcastChannel.
-// Popouts feed themselves from their own hub connection; the main window only
-// pushes channel changes and settings so open popouts follow along.
-
 const syncChannel = typeof BroadcastChannel !== "undefined"
   ? new BroadcastChannel("unified-chat-lite-sync")
   : null;
@@ -343,6 +326,9 @@ if (syncChannel) {
         showThirdPartyEmotes = Boolean(payload.value);
         renderMessages();
         break;
+      case "alertUrls":
+        applyPopoutAlerts(payload.urls);
+        break;
       case "use24hClock":
         use24hClock = Boolean(payload.value);
         renderMessages();
@@ -350,9 +336,6 @@ if (syncChannel) {
     }
   });
 }
-
-// ---------------------------------------------------------------------------
-// Feed rendering
 
 function addMessage(message) {
   const wasNearBottom = isNearBottom();
@@ -379,8 +362,7 @@ function markDeleted(predicate) {
   renderMessages();
 }
 
-// The delay positions each card in its lifetime: positive = still waiting to
-// fade, negative = resumes mid-fade even after a DOM rebuild.
+// Negative delay resumes the fade mid-life after a DOM rebuild.
 function overlayFadeStyle(message) {
   if (!isOverlay) return "";
   const age = Math.max(Date.now() - new Date(message.timestamp).getTime(), 0);
@@ -445,13 +427,10 @@ scrollBottomBtn.addEventListener("click", () => {
   feedEl.scrollTop = feedEl.scrollHeight;
 });
 
-// ---------------------------------------------------------------------------
-// Status panel (main window only)
-
 function setStatus(platform, dot, stateText, detail, videoId) {
   state.statuses.set(platform, { platform, dot, state: stateText, detail, video_id: videoId });
   renderStatuses();
-  if (platform === "youtube") renderPlayer(); // live video id may have changed
+  if (platform === "youtube") renderPlayer(); 
 }
 
 function renderStatuses() {
@@ -468,10 +447,7 @@ function renderStatuses() {
   `).join("");
 }
 
-// ---------------------------------------------------------------------------
-// Hub connection: the server keeps one upstream connection per unique channel
-// and fans out normalized events; this client just subscribes and renders.
-
+// Hub connection: subscribe and render; the server fans out per-channel events.
 class HubConnection {
   constructor() {
     this.socket = null;
@@ -487,7 +463,6 @@ class HubConnection {
     } else if (!this.socket) {
       this.open();
     }
-    // CONNECTING: the open handler sends the latest desired set.
   }
 
   sendSubscribe() {
@@ -557,17 +532,11 @@ class HubConnection {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Wiring. Elements that only exist on index.html are guarded so this file can
-// be shared with popout.html.
-
+// Wiring — elements that only exist on index.html are guarded.
 const togglePlatform = document.getElementById("toggle-platform");
 const hubConnection = new HubConnection();
 
 function connectFromInputs({ updateUrl = true } = {}) {
-  // An empty field is sent as "" — the server diffs the desired set and
-  // disconnects that platform (the shared upstream is released after a short
-  // linger, in case someone reconnects).
   const channels = {};
   for (const platform of PLATFORMS) {
     channels[platform] = channelInputs[platform].value.trim();
@@ -594,8 +563,6 @@ function connectFromInputs({ updateUrl = true } = {}) {
   }
 }
 
-// The red ✕ shows only on rows with an active connection; clicking it stops
-// that connector and clears the field, ready for a new name.
 function updateClearButtons(channels) {
   for (const platform of PLATFORMS) {
     channelClears[platform]?.classList.toggle("hidden", !channels[platform]);
@@ -613,8 +580,7 @@ if (channelsFormEl) {
       connectFromInputs();
     });
   }
-  // Enter in any channel field connects right away — handy for adding one
-  // more chat while others are already running.
+
   for (const input of Object.values(channelInputs)) {
     input?.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
@@ -646,19 +612,18 @@ if (clearBtn) {
 const popoutBtn = document.getElementById("popout-chat");
 if (popoutBtn) {
   popoutBtn.addEventListener("click", () => {
-    // Channels ride along in the URL so the popout works standalone.
+    // Channels and alert URLs ride along in the URL so the popout works standalone.
     const params = new URLSearchParams();
     for (const platform of PLATFORMS) {
       const channel = channelInputs[platform].value.trim();
       if (channel) params.set(platform, channel);
     }
+    for (const url of storedAlertUrls()) params.append("alerts", url);
     const query = params.toString();
     window.open(`popout${query ? `?${query}` : ""}`, "unified-chat-lite-popout", "width=500,height=800,resizable=yes,scrollbars=no");
   });
 }
 
-// "More info" overlay (main window only): quick usage tips, closed via the ✕,
-// a click on the backdrop, or Escape.
 const infoOverlayEl = document.getElementById("info-overlay");
 const openInfoBtn = document.getElementById("open-info");
 if (infoOverlayEl && openInfoBtn) {
@@ -728,11 +693,7 @@ if (togglePlatform) {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Stream player (popout only): embedded player docked above the feed, muted
-// start. YouTube needs the live video id from statuses; TikTok has no embed.
-// Twitch embeds require HTTPS (localhost excepted).
-
+// Stream player (popout only). Twitch embeds require HTTPS (localhost excepted).
 const PLAYER_STORAGE_KEY = "popoutPlayer";
 const PLAYER_PLATFORMS = ["twitch", "kick", "youtube"];
 
@@ -822,6 +783,169 @@ if (playerToggleEl) {
   });
 }
 
+// Alert sounds: hidden alert-overlay iframes in the popout; URLs stay in the browser.
+const ALERTS_STORAGE_KEY = "alertUrls";
+
+function isValidAlertUrl(value) {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch (_) {
+    return false;
+  }
+}
+
+function storedAlertUrls() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(ALERTS_STORAGE_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed.filter(isValidAlertUrl) : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+const alertsEditBtn = document.getElementById("alerts-edit");
+if (alertsEditBtn) {
+  const editorEl = document.getElementById("alerts-editor");
+  const rowsEl = document.getElementById("alerts-rows");
+  const applyBtn = document.getElementById("alerts-apply");
+
+  const syncEditButton = () => {
+    const count = storedAlertUrls().length;
+    alertsEditBtn.textContent = count ? `✎ ${count}` : "+ Add";
+    alertsEditBtn.title = count ? "Edit alert sound overlays" : "Add alert sound overlays (StreamElements etc.)";
+  };
+
+  const addRow = (value = "") => {
+    const row = document.createElement("div");
+    row.className = "alerts-row";
+    row.innerHTML = `
+      <input class="input-field alerts-input" type="url" placeholder="https://streamelements.com/overlay/…" spellcheck="false">
+      <button class="channel-clear alerts-remove" type="button" title="Remove">&#x2715;</button>`;
+    row.querySelector("input").value = value;
+    rowsEl.appendChild(row);
+  };
+
+  alertsEditBtn.addEventListener("click", () => {
+    if (editorEl.classList.contains("hidden")) {
+      rowsEl.innerHTML = "";
+      const urls = storedAlertUrls();
+      (urls.length ? urls : [""]).forEach(addRow);
+      editorEl.classList.remove("hidden");
+      rowsEl.querySelector("input")?.focus();
+    } else {
+      editorEl.classList.add("hidden"); // discard edits; reopening re-reads saved state
+    }
+  });
+
+  rowsEl.addEventListener("click", (event) => {
+    const remove = event.target.closest(".alerts-remove");
+    if (!remove) return;
+    remove.closest(".alerts-row").remove();
+    // Removing the last row deletes the saved list and closes the editor.
+    if (!rowsEl.children.length) {
+      try {
+        window.localStorage.setItem(ALERTS_STORAGE_KEY, "[]");
+      } catch (_) {}
+      broadcast({ type: "alertUrls", urls: [] });
+      editorEl.classList.add("hidden");
+      syncEditButton();
+    }
+  });
+
+  rowsEl.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      applyBtn.click();
+    }
+  });
+
+  document.getElementById("alerts-add-row").addEventListener("click", () => {
+    addRow();
+    rowsEl.lastElementChild.querySelector("input").focus();
+  });
+
+  applyBtn.addEventListener("click", () => {
+    let valid = true;
+    const urls = [];
+    for (const input of rowsEl.querySelectorAll(".alerts-input")) {
+      const value = input.value.trim();
+      input.classList.remove("invalid");
+      if (!value) continue;
+      if (isValidAlertUrl(value)) {
+        urls.push(value);
+      } else {
+        input.classList.add("invalid");
+        valid = false;
+      }
+    }
+    if (!valid) return;
+    try {
+      window.localStorage.setItem(ALERTS_STORAGE_KEY, JSON.stringify(urls));
+    } catch (_) {}
+    broadcast({ type: "alertUrls", urls });
+    editorEl.classList.add("hidden");
+    syncEditButton();
+  });
+
+  syncEditButton();
+}
+
+// One-click sound unlock; any click in the popout counts.
+const alertFramesEl = document.getElementById("alert-frames");
+const alertsUnlockEl = document.getElementById("alerts-unlock");
+let alertUrls = [];
+let alertAudioUnlocked = false;
+
+function renderAlertFrames() {
+  if (!alertFramesEl || isOverlay) return;
+  for (const frame of [...alertFramesEl.children]) {
+    if (!alertUrls.includes(frame.src)) frame.remove();
+  }
+  const existing = new Set([...alertFramesEl.children].map((frame) => frame.src));
+  for (const url of alertUrls) {
+    if (existing.has(url)) continue;
+    const frame = document.createElement("iframe");
+    frame.src = url;
+    frame.allow = "autoplay";
+    frame.tabIndex = -1;
+    alertFramesEl.appendChild(frame);
+  }
+  updateAlertUnlock();
+}
+
+function unlockAlertAudio() {
+  alertAudioUnlocked = true;
+  updateAlertUnlock();
+  for (const frame of alertFramesEl?.children || []) {
+    frame.contentWindow?.postMessage({ type: "unlock-audio" }, "*");
+  }
+}
+
+function updateAlertUnlock() {
+  alertsUnlockEl?.classList.toggle("hidden", alertAudioUnlocked || !alertUrls.length);
+}
+
+if (alertsUnlockEl) {
+  alertsUnlockEl.addEventListener("click", unlockAlertAudio);
+  const onFirstGesture = () => {
+    if (!alertUrls.length) return;
+    unlockAlertAudio();
+    document.removeEventListener("pointerdown", onFirstGesture);
+  };
+  document.addEventListener("pointerdown", onFirstGesture);
+}
+
+// Mirrors alert URLs into the address bar so the link stays standalone.
+function applyPopoutAlerts(urls) {
+  alertUrls = (urls || []).filter(isValidAlertUrl);
+  renderAlertFrames();
+  const params = new URLSearchParams(window.location.search);
+  params.delete("alerts");
+  for (const url of alertUrls) params.append("alerts", url);
+  const query = params.toString();
+  window.history.replaceState(null, "", query ? `?${query}` : window.location.pathname);
+}
+
 function channelsFromLocation() {
   const params = new URLSearchParams(window.location.search);
   let stored = {};
@@ -871,6 +995,11 @@ if (isPopout) {
     applyPopoutChannels(channels);
   } else {
     renderPlayer(); // restore the toggle/open state even with nothing to watch
+  }
+  if (!isOverlay) {
+    const fromUrl = pageParams.getAll("alerts").filter(isValidAlertUrl);
+    alertUrls = fromUrl.length ? fromUrl : storedAlertUrls();
+    renderAlertFrames();
   }
   if (isOverlay) {
     // Prune messages the fade animation has already hidden.
