@@ -596,6 +596,57 @@ h2 {
     flex-shrink: 0;
 }
 
+.hype-train-bar {
+    flex-shrink: 0;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--panel-border);
+    background: rgba(145, 70, 255, 0.08);
+    max-height: 60px;
+    opacity: 1;
+    overflow: hidden;
+    transition: opacity 500ms ease, max-height 500ms ease, padding 500ms ease;
+}
+
+.hype-train-bar.hidden {
+    max-height: 0;
+    opacity: 0;
+    padding: 0 14px;
+    border-bottom: none;
+    pointer-events: none;
+}
+
+.hype-train-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.82rem;
+    margin-bottom: 5px;
+}
+
+.hype-train-label {
+    font-weight: 700;
+    color: var(--text);
+}
+
+#ht-progress-text {
+    color: var(--muted);
+}
+
+.hype-train-track {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+}
+
+.hype-train-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #9146ff, #ffd700);
+    transition: width 400ms ease;
+}
+
 .feed-wrapper {
     position: relative;
     flex: 1 1 0;
@@ -801,6 +852,13 @@ h2 {
     height: 1.4em;
     vertical-align: middle;
     margin: 0 1px;
+}
+
+.cheer-amount {
+    font-weight: 700;
+    font-size: 0.85em;
+    vertical-align: middle;
+    margin: 0 3px 0 1px;
 }
 
 .empty-state {
@@ -1226,6 +1284,7 @@ html.overlay-mode .feed-panel {
 html.overlay-mode .scroll-bottom,
 html.overlay-mode .player-pane,
 html.overlay-mode .player-controls,
+html.overlay-mode .hype-train-bar,
 html.overlay-mode .empty-state {
     display: none;
 }
