@@ -3,7 +3,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .connectors.kick import KickChat
@@ -58,6 +59,18 @@ async def handle_subscribe(viewer: Viewer, channels: dict) -> None:
 @app.get("/health")
 async def health() -> dict:
     return {"status": "ok"}
+
+
+@app.get("/popout")
+@app.get("/overlay")
+async def popout_page() -> FileResponse:
+    return FileResponse(WEB_DIR / "popout.html")
+
+
+@app.get("/popout.html")
+async def popout_legacy(request: Request) -> RedirectResponse:
+    query = f"?{request.url.query}" if request.url.query else ""
+    return RedirectResponse(f"/popout{query}", status_code=301)
 
 
 app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
