@@ -42,7 +42,8 @@ shareable as links: `https://unified-chat.com/?twitch=channelname&kick=channelna
 - **Event notices** — subs, resubs, gift subs, raids and cheers (Twitch),
   subs/gifts/hosts (Kick), Super Chats/Stickers and memberships (YouTube)
   render with a highlight border.
-- **Installable (PWA)** — install it as an app from the browser's address bar.
+- **Installable (PWA)** — both the main page and the popout install as apps
+  from the browser's address bar; the popout opens with your last used channels.
 - **Efficient** — the server keeps one upstream connection per unique channel
   (not per viewer) and fans out through an internal WebSocket hub.
 
