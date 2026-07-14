@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from pathlib import Path
@@ -13,6 +14,7 @@ from .connectors.tiktok import TikTokChat
 from .connectors.twitch import TwitchChat
 from .connectors.youtube import YouTubeChat
 from .hub import Hub, Viewer
+from .stats import Stats
 
 logging.basicConfig(level=logging.INFO)
 
@@ -29,6 +31,7 @@ CHANNEL_PATTERNS = {
 }
 
 app = FastAPI(title="Unified Chat Lite")
+stats = Stats()
 hub = Hub()
 hub.register_connector("twitch", TwitchChat(hub))
 hub.register_connector("kick", KickChat(hub))
@@ -36,10 +39,21 @@ hub.register_connector("youtube", YouTubeChat(hub))
 hub.register_connector("tiktok", TikTokChat(hub))
 
 
+@app.on_event("startup")
+async def start_stats_autosave() -> None:
+    asyncio.create_task(stats.autosave())
+
+
+@app.on_event("shutdown")
+async def save_stats() -> None:
+    stats.save()
+
+
 @app.websocket("/ws")
 async def viewer_socket(websocket: WebSocket) -> None:
     await websocket.accept()
     viewer = Viewer(websocket)
+    stats.connection_opened()
     try:
         while True:
             payload = await websocket.receive_json()
@@ -48,6 +62,7 @@ async def viewer_socket(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         pass
     finally:
+        stats.connection_closed()
         await hub.drop_viewer(viewer)
 
 
@@ -72,6 +87,11 @@ async def handle_subscribe(viewer: Viewer, channels: dict) -> None:
 @app.get("/health")
 async def health() -> dict:
     return {"status": "ok"}
+
+
+@app.get("/stats")
+async def stats_endpoint() -> dict:
+    return stats.snapshot(len(hub.channels))
 
 
 @app.get("/popout")
