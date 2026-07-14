@@ -1,12 +1,8 @@
 services:
   unified-chat-lite:
-    build: .
+    # build: .
     image: kim3k/unified-chat-lite:latest
     container_name: unified-chat-lite
     restart: unless-stopped
-    # Only needed if you want to reach it via a host port (pick any free one).
-    # With a cloudflared tunnel on the same docker network you can delete
-    # this whole ports block and point the tunnel at
-    # http://unified-chat-lite:8000 instead.
     ports:
       - "8100:8000"
