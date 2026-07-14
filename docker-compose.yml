@@ -1,7 +1,7 @@
 services:
   unified-chat-lite:
     build: .
-    image: unified-chat-lite:latest
+    image: kim3k/unified-chat-lite:latest
     container_name: unified-chat-lite
     restart: unless-stopped
     # Only needed if you want to reach it via a host port (pick any free one).
