@@ -101,14 +101,33 @@ This service stores **no data** — it is a pure pass-through proxy:
 
 ### Docker (recommended)
 
+No cloning needed — published images exist on
+[Docker Hub](https://hub.docker.com/r/kim3k/unified-chat-lite) (`kim3k/unified-chat-lite`)
+and GHCR (`ghcr.io/kimsec/unified-chat-lite`), for amd64 and arm64. Save this
+as `docker-compose.yml` and run `docker compose up -d`:
+
+```yaml
+services:
+  unified-chat-lite:
+    image: kim3k/unified-chat-lite:latest
+    container_name: unified-chat-lite
+    restart: unless-stopped
+    ports:
+      - "8100:8000"
+```
+
+Update later with `docker compose pull && docker compose up -d`.
+
+The app listens on port 8000 inside the container; the compose file maps it
+to host port 8100 by default — change that to any free port, or delete the
+`ports` block entirely if a cloudflared tunnel on the same Docker network
+points at `http://unified-chat-lite:8000` (no host port needed at all).
+
+### Build from source
+
 ```
 docker compose up -d --build
 ```
-
-The app listens on port 8000 inside the container; `docker-compose.yml` maps
-it to host port 8100 by default — change that to any free port, or delete the
-`ports` block entirely if a cloudflared tunnel on the same Docker network
-points at `http://unified-chat-lite:8000` (no host port needed at all).
 
 ### Local development (Windows)
 
