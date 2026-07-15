@@ -34,14 +34,15 @@ shareable as links: `https://unified-chat.com/?twitch=channelname&kick=channelna
   no browser extension needed.
 - **Twitch badges** — broadcaster, mod, VIP, sub and more, using Twitch's own
   badge art.
-- **Popout** — chat-only window with your channels in the URL: bookmark it,
-  make a desktop shortcut, or share the link — it works without the main page.
-- **Stream player** — press ▶ in the popout to watch Twitch, Kick or YouTube
-  (once live) above the chat. Starts muted; platform icons switch source.
+- **Expand** — one click fills the window with the chat; ✕ or Esc brings the
+  page back. The state lives in the URL (`?expand=1`), so a bookmark or shared
+  link opens straight into it.
+- **Stream player** — press ▶ in the expanded chat to watch Twitch, Kick or
+  YouTube (once live) above the chat. Starts muted; platform icons switch source.
 - **Alert sounds** — paste your StreamElements/Streamlabs alert overlay URLs
-  under Settings → Alert sounds and they play in the popout. Stored only in
-  your browser, never on the server.
-- **OBS overlay** — swap `/popout` for `/overlay` in the link for a transparent
+  under Settings → Alert sounds and they play in the expanded chat. Stored
+  only in your browser, never on the server.
+- **OBS overlay** — use `/overlay?twitch=channelname` as a transparent
   browser source with auto-fading messages (see parameters below).
 - **Event notices** — subs, resubs, gift subs, raids and cheers with animated
   cheermotes (Twitch), subs/gift subs/hosts/Kicks gifts (Kick), Super
@@ -50,15 +51,14 @@ shareable as links: `https://unified-chat.com/?twitch=channelname&kick=channelna
   train is rolling, and fades out when it ends.
 - **Shared chat** — in Twitch dual streams, messages from the partner's chat
   show that streamer's avatar.
-- **Installable (PWA)** — both the main page and the popout install as apps
-  from the browser's address bar; the popout opens with your last used channels.
+- **Installable (PWA)** — install as an app from the browser's address bar;
+  it opens with your last used channels.
 - **Efficient** — the server keeps one upstream connection per unique channel
   (not per viewer) and fans out through an internal WebSocket hub.
 
 ## Settings
 
-All toggles live in the sidebar, are stored locally in the browser and sync
-live to open popouts/overlays:
+All toggles live in the sidebar and are stored locally in the browser:
 
 | Setting | Default | Does |
 |---|---|---|
@@ -67,8 +67,8 @@ live to open popouts/overlays:
 | 7TV/BTTV/FFZ emotes | on | third-party emotes in Twitch chats |
 | Highlight mentions | on | highlight messages @-mentioning a connected channel |
 | 24-hour clock | on | 24h vs 12h timestamps |
-| Text size | 16 px | chat text size (main page + popout) |
-| Alert sounds | – | alert overlay URLs whose sounds play in the popout |
+| Text size | 16 px | chat text size |
+| Alert sounds | – | alert overlay URLs whose sounds play in the expanded chat |
 
 ## OBS overlay parameters
 
