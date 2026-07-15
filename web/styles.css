@@ -1398,6 +1398,15 @@ html.expand-mode .feed {
     max-height: none;
 }
 
+/* Keeps the hype train percentage clear of the floating player/exit buttons. */
+body[data-mode="popout"] .hype-train-bar {
+    padding-right: 48px;
+}
+
+html.expand-mode .hype-train-bar {
+    padding-right: 86px;
+}
+
 html.expand-mode .player-controls {
     display: flex;
 }
