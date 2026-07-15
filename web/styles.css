@@ -901,10 +901,16 @@ h2 {
         grid-row: auto;
     }
 
+    /* Panels become grid items so the feed can sit between Settings and Status. */
     .side-column {
-        overflow-y: visible;
-        padding-right: 0;
+        display: contents;
     }
+
+    .channels-panel { order: 1; }
+    .controls-panel { order: 2; }
+    .feed-panel { order: 3; }
+    .status-panel { order: 4; }
+    .about-panel { order: 5; }
 
     .feed-panel {
         height: calc(100vh - 80px);
@@ -1341,4 +1347,81 @@ html.overlay-no-icons .platform-pill {
     to {
         opacity: 0;
     }
+}
+
+/* --- Expand (?expand=1): the main page expands into the popout layout --- */
+
+body[data-mode="main"] .player-controls {
+    display: none;
+}
+
+html.expand-mode,
+html.expand-mode body {
+    height: 100%;
+    overflow: hidden;
+}
+
+html.expand-mode body {
+    padding: 0;
+}
+
+html.expand-mode .app-shell {
+    max-width: none;
+    height: 100%;
+}
+
+/* Promotes the feed panel to a direct flex child of the app shell. */
+html.expand-mode .layout-grid {
+    display: contents;
+}
+
+html.expand-mode .hero,
+html.expand-mode .side-column,
+html.expand-mode .feed-panel > .panel-header {
+    display: none;
+}
+
+html.expand-mode .feed-panel {
+    flex: 1;
+    min-height: 0;
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    border: none;
+    border-radius: 0;
+    overflow: hidden;
+}
+
+html.expand-mode .feed {
+    flex: 1 1 0;
+    min-height: 0;
+    max-height: none;
+}
+
+html.expand-mode .player-controls {
+    display: flex;
+}
+
+.feed-panel.expand-anim {
+    position: relative;
+    z-index: 50;
+    will-change: transform;
+}
+
+#expand-toggle {
+    gap: 7px;
+}
+
+#expand-toggle svg {
+    height: 12px;
+    width: auto;
+}
+
+.expand-exit {
+    border-color: rgba(255, 123, 123, 0.4);
+    color: var(--danger);
+}
+
+.expand-exit:hover {
+    background: rgba(255, 59, 48, 0.25);
 }
