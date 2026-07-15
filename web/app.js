@@ -19,6 +19,10 @@ if (isOverlay) {
   if (!overlayOptions.icons) root.classList.add("overlay-no-icons");
 }
 
+// Expand (?expand=1): the main page expands into the popout layout in place.
+let isExpanded = !isPopout && (pageParams.get("expand") ?? "0") !== "0";
+document.documentElement.classList.toggle("expand-mode", isExpanded);
+
 const state = {
   messages: [],
   statuses: new Map(),
@@ -677,6 +681,8 @@ function connectFromInputs({ updateUrl = true } = {}) {
   updateClearButtons(channels);
   updateMentionRegex(channels);
   resetHypeTrainBar();
+  playerState.channels = channels;
+  renderPlayer();
   broadcast({ type: "channels", channels });
   try {
     window.localStorage.setItem("channels", JSON.stringify(channels));
@@ -741,18 +747,79 @@ if (clearBtn) {
   });
 }
 
-const popoutBtn = document.getElementById("popout-chat");
-if (popoutBtn) {
-  popoutBtn.addEventListener("click", () => {
-    // Channels and alert URLs ride along in the URL so the popout works standalone.
-    const params = new URLSearchParams();
-    for (const platform of PLATFORMS) {
-      const channel = channelInputs[platform].value.trim();
-      if (channel) params.set(platform, channel);
-    }
-    for (const url of storedAlertUrls()) params.append("alerts", url);
-    const query = params.toString();
-    window.open(`popout${query ? `?${query}` : ""}`, "unified-chat-lite-popout", "width=500,height=800,resizable=yes,scrollbars=no");
+const expandToggleBtn = document.getElementById("expand-toggle");
+const feedPanelEl = document.querySelector(".feed-panel");
+const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+let expandAnimCleanup = null;
+
+// URL params win over saved URLs, same precedence as the popout.
+function mainAlertUrls() {
+  const fromUrl = new URLSearchParams(window.location.search).getAll("alerts").filter(isValidAlertUrl);
+  return fromUrl.length ? fromUrl : storedAlertUrls();
+}
+
+function setExpanded(on, { animate = true } = {}) {
+  if (isPopout || on === isExpanded) return;
+  const firstRect = feedPanelEl.getBoundingClientRect();
+  const wasNearBottom = isNearBottom();
+  isExpanded = on;
+  document.documentElement.classList.toggle("expand-mode", on);
+
+  const params = new URLSearchParams(window.location.search);
+  if (on) {
+    params.set("expand", "1");
+  } else {
+    params.delete("expand");
+  }
+  const query = params.toString();
+  window.history.replaceState(null, "", query ? `?${query}` : window.location.pathname);
+
+  alertUrls = on ? mainAlertUrls() : [];
+  renderAlertFrames();
+  renderPlayer();
+
+  if (animate && !prefersReducedMotion) playExpandTransition(firstRect);
+  if (wasNearBottom) {
+    requestAnimationFrame(() => {
+      feedEl.scrollTop = feedEl.scrollHeight;
+    });
+  }
+}
+
+// FLIP: slide the feed panel from its old rect to where the class flip put it.
+function playExpandTransition(firstRect) {
+  expandAnimCleanup?.();
+  const lastRect = feedPanelEl.getBoundingClientRect();
+  if (!lastRect.width || !lastRect.height) return;
+  feedPanelEl.classList.add("expand-anim");
+  feedPanelEl.style.transition = "none";
+  feedPanelEl.style.transformOrigin = "top left";
+  feedPanelEl.style.transform = `translate(${firstRect.left - lastRect.left}px, ${firstRect.top - lastRect.top}px) `
+    + `scale(${firstRect.width / lastRect.width}, ${firstRect.height / lastRect.height})`;
+  feedPanelEl.getBoundingClientRect(); // flush, so the transition has a start frame
+  feedPanelEl.style.transition = "transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1)";
+  feedPanelEl.style.transform = "";
+  const finish = () => {
+    feedPanelEl.classList.remove("expand-anim");
+    feedPanelEl.style.transition = "";
+    feedPanelEl.style.transformOrigin = "";
+    feedPanelEl.style.transform = "";
+    feedPanelEl.removeEventListener("transitionend", finish);
+    clearTimeout(timer);
+    expandAnimCleanup = null;
+  };
+  const timer = setTimeout(finish, 400);
+  feedPanelEl.addEventListener("transitionend", finish);
+  expandAnimCleanup = finish;
+}
+
+if (expandToggleBtn) {
+  expandToggleBtn.addEventListener("click", () => setExpanded(true));
+  document.getElementById("expand-exit").addEventListener("click", () => setExpanded(false));
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !isExpanded) return;
+    if (infoOverlayEl && !infoOverlayEl.classList.contains("hidden")) return;
+    setExpanded(false);
   });
 }
 
@@ -857,7 +924,7 @@ if (togglePlatform) {
   });
 }
 
-// Stream player (popout only). Twitch embeds require HTTPS (localhost excepted).
+// Stream player (popout + expanded chat). Twitch embeds require HTTPS (localhost excepted).
 const PLAYER_STORAGE_KEY = "popoutPlayer";
 const PLAYER_PLATFORMS = ["twitch", "kick", "youtube"];
 
@@ -903,6 +970,13 @@ function savePlayerState() {
 
 function renderPlayer() {
   if (!playerPaneEl || isOverlay) return; // no player inside an OBS overlay
+  if (!isPopout && !isExpanded) {
+    // Player only lives in the expanded chat on the main page; drop any playing iframe.
+    playerPaneEl.classList.add("hidden");
+    playerSourcesEl.classList.add("hidden");
+    playerFrameEl.innerHTML = "";
+    return;
+  }
   const available = PLAYER_PLATFORMS.filter((platform) => playerEmbedSrc(platform) !== null);
   if (!available.includes(playerState.source)) {
     playerState.source = available[0] || null;
@@ -947,7 +1021,7 @@ if (playerToggleEl) {
   });
 }
 
-// Alert sounds: hidden alert-overlay iframes in the popout; URLs stay in the browser.
+// Alert sounds: hidden alert-overlay iframes in the popout and expanded chat; URLs stay in the browser.
 const ALERTS_STORAGE_KEY = "alertUrls";
 
 function isValidAlertUrl(value) {
@@ -1011,6 +1085,7 @@ if (alertsEditBtn) {
         window.localStorage.setItem(ALERTS_STORAGE_KEY, "[]");
       } catch (_) {}
       broadcast({ type: "alertUrls", urls: [] });
+      applyMainAlerts([]);
       editorEl.classList.add("hidden");
       syncEditButton();
     }
@@ -1047,6 +1122,7 @@ if (alertsEditBtn) {
       window.localStorage.setItem(ALERTS_STORAGE_KEY, JSON.stringify(urls));
     } catch (_) {}
     broadcast({ type: "alertUrls", urls });
+    applyMainAlerts(urls);
     editorEl.classList.add("hidden");
     syncEditButton();
   });
@@ -1054,7 +1130,7 @@ if (alertsEditBtn) {
   syncEditButton();
 }
 
-// One-click sound unlock; any click in the popout counts.
+// One-click sound unlock; any click on the page counts.
 const alertFramesEl = document.getElementById("alert-frames");
 const alertsUnlockEl = document.getElementById("alerts-unlock");
 let alertUrls = [];
@@ -1097,6 +1173,20 @@ if (alertsUnlockEl) {
     document.removeEventListener("pointerdown", onFirstGesture);
   };
   document.addEventListener("pointerdown", onFirstGesture);
+}
+
+// Saved edits replace any legacy &alerts= in the address bar and refresh the expanded chat.
+function applyMainAlerts(urls) {
+  if (isPopout) return;
+  const params = new URLSearchParams(window.location.search);
+  if (params.has("alerts")) {
+    params.delete("alerts");
+    const query = params.toString();
+    window.history.replaceState(null, "", query ? `?${query}` : window.location.pathname);
+  }
+  if (!isExpanded) return;
+  alertUrls = urls;
+  renderAlertFrames();
 }
 
 // Mirrors alert URLs into the address bar so the link stays standalone.
@@ -1181,4 +1271,9 @@ if (isPopout) {
 } else {
   renderStatuses();
   restoreChannels();
+  if (isExpanded) {
+    alertUrls = mainAlertUrls();
+    renderAlertFrames();
+  }
+  renderPlayer(); // restore the toggle/open state even with nothing to watch
 }
