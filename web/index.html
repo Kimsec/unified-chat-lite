@@ -36,6 +36,9 @@
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="assets/icon-192.png">
     <link rel="stylesheet" href="styles.css">
+    <script>
+        if ((new URLSearchParams(location.search).get("expand") ?? "0") !== "0") document.documentElement.classList.add("expand-mode");
+    </script>
 
     <script type="application/ld+json">
     {
@@ -55,7 +58,7 @@
             "Embedded stream player (Twitch, Kick, YouTube)",
             "StreamElements/Streamlabs alert sounds",
             "Transparent OBS chat overlay with auto-fading messages",
-            "Shareable popout links, installable as an app (PWA)"
+            "Expandable full-window chat, shareable links, installable as an app (PWA)"
         ],
         "offers": {
             "@type": "Offer",
@@ -70,8 +73,13 @@
     }
     </script>
 </head>
-<body>
+<body data-mode="main">
     <div class="app-shell">
+        <button id="alerts-unlock" class="alerts-unlock hidden" type="button"
+            title="Browsers block sound until you interact with the page">&#128266; Enable alert sound</button>
+        <div id="player-pane" class="player-pane hidden">
+            <div id="player-frame" class="player-frame"></div>
+        </div>
         <main class="layout-grid">
             <header class="hero">
                 <h1><img src="assets/favicon.ico" class="header-logo" alt="Unified Chat Lite logo">Unified Chat <span class="lite-tag">Lite</span></h1>
@@ -172,7 +180,7 @@
                             <button id="alerts-apply" class="alerts-apply" type="button">Apply</button>
                         </div>
                         <p class="alerts-hint">Alert overlay URLs (StreamElements etc.) play their sound in the
-                            popout. Stored only in this browser.</p>
+                            expanded chat. Stored only in this browser.</p>
                     </div>
                     <button id="clear-messages" class="settings-action" type="button">Clear chat</button>
                 </div>
@@ -209,8 +217,10 @@
             <section class="panel feed-panel">
                 <div class="panel-header">
                     <h2>Unified Feed</h2>
-                    <button id="popout-chat" class="ghost-button small-button" type="button"
-                        title="Open the chat in its own window">&#x29c9; Popout</button>
+                    <button id="expand-toggle" class="ghost-button small-button" type="button"
+                        title="Expand the chat to fill the window">
+                        <svg viewBox="0 0 448 512" aria-hidden="true"><path fill="currentColor" d="M32 32C14.3 32 0 46.3 0 64v96c0 17.7 14.3 32 32 32s32-14.3 32-32V96h64c17.7 0 32-14.3 32-32s-14.3-32-32-32H32zM64 352c0-17.7-14.3-32-32-32s-32 14.3-32 32v96c0 17.7 14.3 32 32 32h96c17.7 0 32-14.3 32-32s-14.3-32-32-32H64v-64zM320 32c-17.7 0-32 14.3-32 32s14.3 32 32 32h64v64c0 17.7 14.3 32 32 32s32-14.3 32-32V64c0-17.7-14.3-32-32-32h-96zM448 352c0-17.7-14.3-32-32-32s-32 14.3-32 32v64h-64c-17.7 0-32 14.3-32 32s14.3 32 32 32h96c17.7 0 32-14.3 32-32v-96z"/></svg>
+                        Expand</button>
                 </div>
                 <div id="hype-train-bar" class="hype-train-bar hidden" role="status" aria-live="polite"
                     aria-hidden="true">
@@ -228,6 +238,12 @@
                 </div>
             </section>
         </main>
+        <div class="player-controls">
+            <div id="player-sources" class="player-sources hidden"></div>
+            <button id="player-toggle" class="player-toggle" type="button" title="Show stream player">&#9654;</button>
+            <button id="expand-exit" class="player-toggle expand-exit" type="button" title="Collapse the chat (Esc)">&#x2715;</button>
+        </div>
+        <div id="alert-frames" class="alert-frames" aria-hidden="true"></div>
     </div>
 
     <div id="info-overlay" class="info-overlay hidden">
@@ -246,19 +262,19 @@
                     </ul>
                 </section>
                 <section>
-                    <h3>Popout &amp; sharing</h3>
+                    <h3>Expand</h3>
                     <ul>
-                        <li><strong>Popout</strong> opens the chat in its own window</li>
-                        <li>The popout link works on its own &mdash; bookmark it, make a desktop shortcut, or share
-                            it</li>
-                        <li>Install the popout as an app (browser address bar) &mdash; it opens with your last used
+                        <li><strong>Expand</strong> (top right) fills the window with the chat</li>
+                        <li><strong>&#x2715;</strong> or <strong>Esc</strong> brings the page back</li>
+                        <li>Bookmark or share the URL while expanded &mdash; it opens straight into it</li>
+                        <li>Install the site as an app (browser address bar) &mdash; it opens with your last used
                             channels</li>
                     </ul>
                 </section>
                 <section>
                     <h3>Watch the stream</h3>
                     <ul>
-                        <li>In the popout, press <strong>&#9654;</strong> (top right) &mdash; starts muted</li>
+                        <li>When expanded, press <strong>&#9654;</strong> (top right) &mdash; starts muted</li>
                         <li>Click the platform icons to switch source</li>
                         <li>YouTube appears once the channel is live</li>
                     </ul>
@@ -267,18 +283,16 @@
                     <h3>Alert sounds</h3>
                     <ul>
                         <li>Settings &rarr; Alert sounds: paste your alert overlay URL (StreamElements etc.) &mdash;
-                            its sound plays in the popout</li>
-                        <li>Click <strong>&#128266; Enable alert sound</strong> once per popout window (browser
-                            rule)</li>
-                        <li>Alert URLs hold your secret token &mdash; remove <strong>&amp;alerts=</strong> before
-                            sharing a popout link</li>
+                            its sound plays in the expanded chat</li>
+                        <li>Click <strong>&#128266; Enable alert sound</strong> once per visit (browser rule)</li>
+                        <li>Alert URLs stay in this browser &mdash; they are never part of the page link</li>
                     </ul>
                 </section>
                 <section>
                     <h3>OBS overlay</h3>
                     <ul>
-                        <li>Swap <strong>/popout</strong> for <strong>/overlay</strong> in the link and add it as a
-                            Browser source</li>
+                        <li>Put <strong>/overlay</strong> in front of the <strong>?</strong> in your page link and
+                            add it as a Browser source</li>
                         <li>Transparent background &mdash; chat floats right on the stream image</li>
                         <li>Messages fade out after 60 s; <strong>&amp;fade=120</strong> changes the lifetime</li>
                         <li>Tune it: <strong>&amp;size=20</strong> (text px), <strong>&amp;align=right</strong>,
