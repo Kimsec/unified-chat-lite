@@ -16,7 +16,7 @@ from .connectors.youtube import YouTubeChat
 from .hub import Hub, Viewer
 from .stats import Stats
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 SUPPORTED_PLATFORMS = ("twitch", "kick", "youtube", "tiktok")
