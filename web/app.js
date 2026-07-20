@@ -637,8 +637,18 @@ class HubConnection {
   handlePayload(payload) {
     if (!payload || typeof payload !== "object") return;
     switch (payload.type) {
-      case "bootstrap":
-        state.messages = payload.messages.slice(-MAX_VISIBLE_MESSAGES);
+      case "bootstrap": {
+        const subscribed = new Set();
+        for (const [platform, channel] of Object.entries(this.desired || {})) {
+          if (channel) subscribed.add(`${platform}:${channel.trim().replace(/^#+/, "").toLowerCase()}`);
+        }
+        const incoming = new Set(payload.messages.map((m) => m.id));
+        const kept = state.messages.filter(
+          (m) => subscribed.has(`${m.platform}:${m.channel}`) && !incoming.has(m.id)
+        );
+        const merged = kept.concat(payload.messages);
+        merged.sort((a, b) => a.timestamp - b.timestamp);
+        state.messages = merged.slice(-MAX_VISIBLE_MESSAGES);
         state.statuses.clear();
         for (const status of payload.statuses) {
           setStatus(status.platform, status.dot, status.state, status.detail, status.video_id);
@@ -646,6 +656,7 @@ class HubConnection {
         renderStatuses(); // even when statuses is empty (everything disconnected)
         renderMessages();
         break;
+      }
       case "message":
         addMessage(payload.message);
         break;
