@@ -101,8 +101,7 @@ This service stores **no data** — it is a pure pass-through proxy:
 
 ### Docker (recommended)
 
-- For amd64 and arm64.
-Save this as `docker-compose.yml` and run `docker compose up -d`:
+Save this as `docker-compose.yml`:
 
 ```yaml
 services:
@@ -113,19 +112,9 @@ services:
     ports:
       - "8100:8000"
 ```
+Run `docker compose up -d`
 
-Update later with `docker compose pull && docker compose up -d`.
 
-
-### Local development (Windows)
-
-```
-python -m venv .venv
-.venv\Scripts\pip install -r server\requirements.txt
-.venv\Scripts\python -m uvicorn server.main:app --port 8000 --no-access-log --log-level warning
-```
-
-Then open http://localhost:8000 — the port is arbitrary; pick any free one.
 
 ## License
 
