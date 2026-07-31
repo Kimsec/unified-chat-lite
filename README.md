@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Your multistream chat, finally in one place. 🎯</strong><br>
-  One unified chat for Twitch, YouTube, Kick & Tiktok in a single clean feed.
+  One unified chat for Twitch, YouTube, YouTube Shorts, Kick & Tiktok in a single clean feed.
 </p><br>
 <p align="center">
   👉<a href="https://unified-chat.com/">Try it here</a>
@@ -21,13 +21,21 @@ Zero-setup, read-only multistream chat viewer — a simplified spin-off of
 [kimsec/unified-chat](https://github.com/kimsec/unified-chat) with no OAuth,
 no per-user hosting and no moderation/sending.
 
-Open [unified-chat.com](https://unified-chat.com/), type up to four usernames
-(Twitch / Kick / YouTube / TikTok) and watch the aggregated chat. Channels are
-shareable as links: `https://unified-chat.com/?twitch=channelname&kick=channelname`.
+Open [unified-chat.com](https://unified-chat.com/), type up to five usernames
+(Twitch / Kick / YouTube / YouTube Shorts / TikTok) and watch the aggregated
+chat. Channels are shareable as links:
+`https://unified-chat.com/?twitch=channelname&youtubeshorts=channelname`.
+
+There's no separate API for YouTube Shorts live streams, so detection works
+by scanning the channel's current live broadcast and checking its aspect
+ratio — vertical (9:16) counts as a Short, horizontal (16:9) as regular
+YouTube. A channel can be entered in both the YouTube and YouTube Shorts
+fields; whichever field matches the live stream's actual orientation is the
+one that connects.
 
 ## Features
 
-- **Unified feed** — up to four chats in one view, with per-platform filters,
+- **Unified feed** — up to five chats in one view, with per-platform filters,
   timestamps and clickable links/emotes. Messages that @-mention a connected
   channel are highlighted.
 - **7TV / BTTV / FFZ emotes** — third-party Twitch emotes render automatically,
@@ -37,8 +45,9 @@ shareable as links: `https://unified-chat.com/?twitch=channelname&kick=channelna
 - **Expand** — one click fills the window with the chat; ✕ or Esc brings the
   page back. The state lives in the URL (`?expand=1`), so a bookmark or shared
   link opens straight into it.
-- **Stream player** — press ▶ in the expanded chat to watch Twitch, Kick or
-  YouTube (once live) above the chat. Starts muted; platform icons switch source.
+- **Stream player** — press ▶ in the expanded chat to watch Twitch, Kick,
+  YouTube or YouTube Shorts (once live) above the chat. Starts muted; platform
+  icons switch source.
 - **Alert sounds** — paste your StreamElements/Streamlabs alert overlay URLs
   under Settings → Alert sounds and they play in the expanded chat. Stored
   only in your browser, never on the server.
@@ -46,7 +55,8 @@ shareable as links: `https://unified-chat.com/?twitch=channelname&kick=channelna
   browser source with auto-fading messages (see parameters below).
 - **Event notices** — subs, resubs, gift subs, raids and cheers with animated
   cheermotes (Twitch), subs/gift subs/hosts/Kicks gifts (Kick), Super
-  Chats/Stickers and memberships (YouTube) render with a highlight border.
+  Chats/Stickers and memberships (YouTube & YouTube Shorts) render with a
+  highlight border.
 - **Hype Train** — a live progress bar (level + %) appears when a Twitch hype
   train is rolling, and fades out when it ends.
 - **Shared chat** — in Twitch dual streams, messages from the partner's chat
@@ -73,7 +83,7 @@ All toggles live in the sidebar and are stored locally in the browser:
 ## OBS overlay parameters
 
 Append to the overlay link, e.g.
-`/overlay?twitch=channelname&fade=90&size=18&max=8`:
+`/overlay?twitch=channelname&youtubeshorts=channelname&fade=90&size=18&max=8`:
 
 | Parameter | Default | Does |
 |---|---|---|

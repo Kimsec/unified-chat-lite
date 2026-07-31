@@ -2,7 +2,7 @@
     "id": "/",
     "name": "Unified Chat Lite",
     "short_name": "Unified Chat",
-    "description": "Watch Twitch, YouTube, Kick and TikTok live chats together in one clean feed.",
+    "description": "Watch Twitch, YouTube, YouTube Shorts, Kick and TikTok live chats together in one clean feed.",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#09111f",

@@ -3,7 +3,8 @@
 No API key of our own, no OAuth: this speaks InnerTube — the internal API the
 YouTube web player itself uses. Flow per channel:
 
-  1. GET youtube.com/@handle/live → canonical watch URL → live video id
+  1. GET youtube.com/@handle/live → resolve the vanity URL's embedded
+     redirect command to a live video id (see `_find_featured_live`)
   2. GET youtube.com/live_chat?v=<id> → scrape INNERTUBE_API_KEY, client
      version and the first chat continuation token from the page
   3. POST youtubei/v1/live_chat/get_live_chat with the continuation, render
@@ -13,10 +14,37 @@ Unlike Twitch/Kick there is no push socket, so this polls — one task per
 channel. If the channel is not live we recheck every 60s and attach when it
 goes live. Requests use curl_cffi with a Chrome fingerprint plus the SOCS
 consent cookie so EU consent redirects don't get in the way.
+
+There is no dedicated "YouTube Shorts" API either: a Shorts-style live is
+just a live broadcast published in a vertical (9:16) aspect ratio, and a
+channel can run one of each at the same time (a regular live plus a live
+Short) — `/@handle/live` only ever resolves to one of them, so it can't be
+the only source. The same InnerTube scraping is reused for both the
+"youtube" and "youtube_shorts" platforms — one `YouTubeChat` instance per
+platform — but each poll gathers *every* live broadcast currently running on
+the channel (`_find_live_videos`) from sources YouTube itself already
+segregates by content type:
+
+  - `/@handle/streams` — the channel's Streams tab, scanned for the entry
+    carrying a "LIVE" thumbnail badge. Primary source for the horizontal
+    live, found independently of whatever `/live` happens to redirect to.
+  - `/@handle/live` — the vanity URL, used only as a fallback for the
+    horizontal live when the Streams tab hasn't picked up a brand-new
+    broadcast yet.
+  - `/@handle/shorts` — the channel's Shorts tab, scanned the same way for
+    an entry carrying a "LIVE" badge.
+
+Orientation can no longer be read off reliable width/height metadata (recent
+YouTube markup dropped the og:video/og:image dimension tags this used to
+rely on). A broadcast found via the Shorts tab is vertical by definition —
+that tab only ever lists Shorts. Anything else is treated as horizontal
+*unless* its own title is self-tagged with "#shorts", the same fallback a
+human would use to tell them apart.
 """
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import random
 import re
@@ -31,12 +59,40 @@ logger = logging.getLogger(__name__)
 OFFLINE_RECHECK_SECONDS = 60
 COOKIES = {"SOCS": "CAI"}
 
-CANONICAL_WATCH_RE = re.compile(
-    r'<link rel="canonical" href="https://www\.youtube\.com/watch\?v=([\w-]{11})"'
-)
+# The vanity URL (/@handle/live) no longer canonicalizes via a <link
+# rel="canonical"> tag; instead the page embeds the resolved navigation as a
+# small inline JS object we can parse as JSON.
+YT_COMMAND_RE = re.compile(r"window\['ytCommand'\] = (\{.*?\});window\['ytUrl'\]", re.DOTALL)
+LIVE_TITLE_RE = re.compile(r'"playerOverlayVideoDetailsRenderer":\{"title":\{"simpleText":"([^"]*)"')
+SHORTS_HASHTAG_RE = re.compile(r"#shorts\b", re.IGNORECASE)
+
 API_KEY_RE = re.compile(r'"INNERTUBE_API_KEY":"([^"]+)"')
 CLIENT_VERSION_RE = re.compile(r'"INNERTUBE_CONTEXT_CLIENT_VERSION":"([^"]+)"')
 CONTINUATION_RE = re.compile(r'"continuation":"([^"]+)"')
+
+# Shorts tab (/@handle/shorts) scanning: each grid item is a
+# shortsLockupViewModel; rather than fully parsing the surrounding minified
+# JSON we anchor on the item boundary and search a generous fixed window
+# after it for the fields we need.
+SHORTS_ITEM_ANCHOR = '"shortsLockupViewModel":{"entityId":"shorts-shelf-item-'
+SHORTS_BLOCK_WINDOW = 4000
+SHORTS_VIDEO_ID_RE = re.compile(r'"videoId":"([\w-]{11})"')
+SHORTS_TITLE_RE = re.compile(r'"primaryText":\{"content":"([^"]*)"')
+SHORTS_LIVE_BADGE_RE = re.compile(r'"badgeStyle":"THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE"')
+SHORTS_LIVE_WATCHING_RE = re.compile(r'"secondaryText":\{"content":"[^"]*\bwatching\b', re.IGNORECASE)
+
+# Streams tab (/@handle/streams) scanning: the currently-live entry (if any)
+# is the only one whose thumbnail badge carries this style, with the video id
+# right there in the same badge object — no windowing needed to find it. Its
+# title sits further into the same lockupViewModel entry.
+LIVE_STREAM_BADGE_RE = re.compile(
+    r'"badgeStyle":"THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE","animationActivationTargetId":"([\w-]{11})"'
+)
+STREAM_TITLE_RE = re.compile(r'"lockupMetadataViewModel":\{"title":\{"content":"([^"]*)"')
+STREAM_TITLE_WINDOW = 6000
+
+VERTICAL = "vertical"
+HORIZONTAL = "horizontal"
 
 
 def parse_runs(runs: list[dict]) -> tuple[str, list[dict]]:
@@ -70,10 +126,10 @@ def parse_runs(runs: list[dict]) -> tuple[str, list[dict]]:
 
 
 class YouTubeChat:
-    platform = "youtube"
-
-    def __init__(self, hub):
+    def __init__(self, hub, platform: str = "youtube"):
         self.hub = hub
+        self.platform = platform
+        self.expected_orientation = VERTICAL if platform == "youtube_shorts" else HORIZONTAL
         self.tasks: dict[str, asyncio.Task] = {}
 
     async def join(self, name: str) -> None:
@@ -92,8 +148,8 @@ class YouTubeChat:
         while True:
             try:
                 async with AsyncSession(impersonate="chrome", cookies=COOKIES) as session:
-                    video_id = await self._find_live_video(session, name)
-                    if video_id is None:
+                    candidates = await self._find_live_videos(session, name)
+                    if not candidates:
                         await self.hub.publish_status(
                             self.platform, name, "warn", "offline",
                             f"Not live right now — rechecking every {OFFLINE_RECHECK_SECONDS}s",
@@ -101,6 +157,18 @@ class YouTubeChat:
                         await asyncio.sleep(OFFLINE_RECHECK_SECONDS)
                         continue
 
+                    match = next((c for c in candidates if c[1] == self.expected_orientation), None)
+                    if match is None:
+                        found_orientations = ", ".join(sorted({c[1] for c in candidates}))
+                        await self.hub.publish_status(
+                            self.platform, name, "warn", "offline",
+                            f"Live now, but only in {found_orientations} format — waiting for a "
+                            f"{self.expected_orientation} live — rechecking every {OFFLINE_RECHECK_SECONDS}s",
+                        )
+                        await asyncio.sleep(OFFLINE_RECHECK_SECONDS)
+                        continue
+
+                    video_id, _orientation, _title = match
                     bootstrap = await self._chat_bootstrap(session, video_id)
                     if bootstrap is None:
                         await self.hub.publish_status(
@@ -142,7 +210,63 @@ class YouTubeChat:
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 60.0)
 
-    async def _find_live_video(self, session: AsyncSession, name: str) -> str | None:
+    async def _find_live_videos(self, session: AsyncSession, name: str) -> list[tuple[str, str, str]]:
+        """Every live broadcast currently running on the channel, as
+        (video_id, orientation, title). A channel can run a horizontal live
+        and a live Short at the same time, and `/live` only ever resolves to
+        one broadcast, so the Streams and Shorts tabs are scanned
+        independently every poll rather than stopping at the first hit.
+
+        The channel's "Live" tab (served at /streams) isn't necessarily
+        limited to horizontal content — it can list a live Short too — so
+        each entry found there is classified from its own title's "#shorts"
+        tag rather than assumed horizontal. When that tab and the dedicated
+        Shorts tab both surface the same video id (the Short showing up in
+        both places), the Shorts tab wins: it's structural proof the id is a
+        Short even when the title itself carries no "#shorts" tag."""
+        streams, live_short = await asyncio.gather(
+            self._find_live_streams(session, name),
+            self._find_live_short(session, name),
+        )
+        if not streams:
+            # The Streams tab can lag a few seconds behind a brand-new
+            # broadcast; the vanity redirect tends to update first.
+            featured = await self._find_featured_live(session, name)
+            if featured is not None:
+                streams = [featured]
+
+        by_id: dict[str, tuple[str, str, str]] = {c[0]: c for c in streams}
+        if live_short is not None:
+            by_id[live_short[0]] = live_short
+
+        return list(by_id.values())
+
+    async def _find_live_streams(self, session: AsyncSession, name: str) -> list[tuple[str, str, str]]:
+        """Scan the channel's Live/Streams tab for every entry carrying a
+        LIVE badge — the primary source for the horizontal live, found
+        independently of whatever `/live` happens to redirect to. Orientation
+        is decided per entry from its own title's "#shorts" tag, since this
+        tab is not guaranteed to be horizontal-only."""
+        handle = name if name.startswith("@") else f"@{name}"
+        response = await session.get(f"https://www.youtube.com/{handle}/streams", timeout=20)
+        if response.status_code >= 400:
+            return []
+        html = response.text
+        results: list[tuple[str, str, str]] = []
+        for match in LIVE_STREAM_BADGE_RE.finditer(html):
+            video_id = match.group(1)
+            title_match = STREAM_TITLE_RE.search(html, match.end(), match.end() + STREAM_TITLE_WINDOW)
+            title = title_match.group(1) if title_match else ""
+            orientation = VERTICAL if SHORTS_HASHTAG_RE.search(title) else HORIZONTAL
+            results.append((video_id, orientation, title))
+        return results
+
+    async def _find_featured_live(self, session: AsyncSession, name: str) -> tuple[str, str, str] | None:
+        """Fallback for _find_live_streams: the channel's featured live via
+        the /@handle/live vanity URL. Horizontal unless the title self-tags
+        with "#shorts" — YouTube no longer exposes reliable video dimensions
+        for this page, so that hashtag is the only orientation signal left
+        for whatever shows up here."""
         handle = name if name.startswith("@") else f"@{name}"
         for url in (
             f"https://www.youtube.com/{handle}/live",
@@ -151,12 +275,47 @@ class YouTubeChat:
             response = await session.get(url, timeout=20)
             if response.status_code >= 400:
                 continue
-            # An offline channel redirects to its home page, whose canonical
-            # URL is the channel itself — only live pages canonicalize to
-            # /watch?v=.
-            match = CANONICAL_WATCH_RE.search(response.text)
-            if match:
-                return match.group(1)
+            html = response.text
+            # An offline channel resolves this vanity URL to its channel page
+            # (webPageType "WEB_PAGE_TYPE_CHANNEL"); only a live channel
+            # resolves it to an actual watch page.
+            match = YT_COMMAND_RE.search(html)
+            if not match:
+                continue
+            try:
+                command = json.loads(match.group(1))
+            except ValueError:
+                continue
+            web_page_type = (
+                (command.get("commandMetadata") or {}).get("webCommandMetadata") or {}
+            ).get("webPageType")
+            video_id = (command.get("watchEndpoint") or {}).get("videoId")
+            if web_page_type != "WEB_PAGE_TYPE_WATCH" or not video_id:
+                continue
+            title_match = LIVE_TITLE_RE.search(html)
+            title = title_match.group(1) if title_match else ""
+            orientation = VERTICAL if SHORTS_HASHTAG_RE.search(title) else HORIZONTAL
+            return video_id, orientation, title
+        return None
+
+    async def _find_live_short(self, session: AsyncSession, name: str) -> tuple[str, str, str] | None:
+        """Scan the channel's Shorts tab for an entry carrying a LIVE badge.
+        Anything found here is vertical by definition — the Shorts tab only
+        ever lists Shorts."""
+        handle = name if name.startswith("@") else f"@{name}"
+        response = await session.get(f"https://www.youtube.com/{handle}/shorts", timeout=20)
+        if response.status_code >= 400:
+            return None
+        html = response.text
+        for match in re.finditer(re.escape(SHORTS_ITEM_ANCHOR), html):
+            block = html[match.start(): match.start() + SHORTS_BLOCK_WINDOW]
+            if not (SHORTS_LIVE_BADGE_RE.search(block) or SHORTS_LIVE_WATCHING_RE.search(block)):
+                continue
+            video_id_match = SHORTS_VIDEO_ID_RE.search(block)
+            if not video_id_match:
+                continue
+            title_match = SHORTS_TITLE_RE.search(block)
+            return video_id_match.group(1), VERTICAL, (title_match.group(1) if title_match else "")
         return None
 
     async def _chat_bootstrap(

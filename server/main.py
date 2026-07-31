@@ -19,7 +19,7 @@ from .stats import Stats
 logging.basicConfig(level=logging.WARNING)
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
-SUPPORTED_PLATFORMS = ("twitch", "kick", "youtube", "tiktok")
+SUPPORTED_PLATFORMS = ("twitch", "kick", "youtube", "youtube_shorts", "tiktok")
 
 # Names go straight into IRC commands and URLs, so reject anything outside
 # each platform's own username charset.
@@ -27,6 +27,7 @@ CHANNEL_PATTERNS = {
     "twitch": re.compile(r"^[a-z0-9_]{1,25}$"),
     "kick": re.compile(r"^[a-z0-9_-]{1,50}$"),
     "youtube": re.compile(r"^@?[a-z0-9._-]{1,50}$"),
+    "youtube_shorts": re.compile(r"^@?[a-z0-9._-]{1,50}$"),
     "tiktok": re.compile(r"^@?[a-z0-9._]{1,50}$"),
 }
 
@@ -35,7 +36,8 @@ stats = Stats()
 hub = Hub()
 hub.register_connector("twitch", TwitchChat(hub))
 hub.register_connector("kick", KickChat(hub))
-hub.register_connector("youtube", YouTubeChat(hub))
+hub.register_connector("youtube", YouTubeChat(hub, platform="youtube"))
+hub.register_connector("youtube_shorts", YouTubeChat(hub, platform="youtube_shorts"))
 hub.register_connector("tiktok", TikTokChat(hub))
 
 

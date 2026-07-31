@@ -29,6 +29,7 @@ const state = {
   filters: {
     twitch: true,
     youtube: true,
+    youtube_shorts: true,
     kick: true,
     tiktok: true,
   },
@@ -38,14 +39,24 @@ const MAX_VISIBLE_MESSAGES = isOverlay && overlayOptions.max ? overlayOptions.ma
 const feedEl = document.getElementById("feed");
 const statusGridEl = document.getElementById("status-grid");
 const channelsFormEl = document.getElementById("channels-form");
-const PLATFORMS = ["twitch", "kick", "youtube", "tiktok"];
+const PLATFORMS = ["twitch", "kick", "youtube", "youtube_shorts", "tiktok"];
+// URL query key per platform — kept separate from the internal platform id so
+// shareable links stay single-word like the existing ones (?youtubeshorts=…).
+const PLATFORM_QUERY_PARAMS = {
+  twitch: "twitch",
+  kick: "kick",
+  youtube: "youtube",
+  youtube_shorts: "youtubeshorts",
+  tiktok: "tiktok",
+};
 const channelInputs = Object.fromEntries(PLATFORMS.map((p) => [p, document.getElementById(`channel-${p}`)]));
 const channelClears = Object.fromEntries(PLATFORMS.map((p) => [p, document.getElementById(`clear-${p}`)]));
 
-const PLATFORM_NAMES = { twitch: "Twitch", youtube: "YouTube", kick: "Kick", tiktok: "TikTok" };
+const PLATFORM_NAMES = { twitch: "Twitch", youtube: "YouTube", youtube_shorts: "YouTube Shorts", kick: "Kick", tiktok: "TikTok" };
 const PLATFORM_SVGS = {
   twitch: `<svg viewBox="0 0 256 268" aria-hidden="true"><path fill="#9146ff" d="M17.46 0L0 46.56v185.21h63.14V268h46.87l36.49-36.23h54.91L256 177.68V0H17.46zm23.07 23.07H232.9v143.14l-41.47 41.47h-69.15L85.79 244.2v-36.52H40.53V23.07zm69.15 104.55h23.07V69.26h-23.07v58.36zm63.14 0h23.07V69.26h-23.07v58.36z"/></svg>`,
   youtube: `<svg viewBox="0 0 576 512" aria-hidden="true"><path fill="#ff0000" d="M549.66 124.63a68.28 68.28 0 0 0-48.05-48.28C458.78 64 288 64 288 64S117.22 64 74.39 76.35a68.28 68.28 0 0 0-48.05 48.28C14.48 167.83 14.48 256 14.48 256s0 88.17 11.86 131.37a68.28 68.28 0 0 0 48.05 48.28C117.22 448 288 448 288 448s170.78 0 213.61-12.35a68.28 68.28 0 0 0 48.05-48.28C561.52 344.17 561.52 256 561.52 256s0-88.17-11.86-131.37zM232.15 337.28V174.72L374.86 256l-142.71 81.28z"/></svg>`,
+  youtube_shorts: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="1" width="12" height="22" rx="4" fill="#ff0033"/><path fill="#fff" d="M10 7.5l6.5 4.5-6.5 4.5z"/></svg>`,
   kick: `<img src="assets/kick-logo.ico" alt="" aria-hidden="true">`,
   tiktok: `<svg viewBox="0 0 448 512" aria-hidden="true"><path fill="#eef4ff" d="M448,209.91a210.06,210.06,0,0,1-122.77-39.25V349.38A162.55,162.55,0,1,1,185,188.31V278.2a74.62,74.62,0,1,0,52.23,71.18V0l88,0a121.18,121.18,0,0,0,1.86,22.17h0A122.18,122.18,0,0,0,381,102.39a121.43,121.43,0,0,0,67,20.14Z"/></svg>`,
 };
@@ -219,6 +230,7 @@ const EMOTE_IMAGE_URLS = {
   twitch: (id) => `https://static-cdn.jtvnw.net/emoticons/v2/${encodeURIComponent(id)}/default/dark/1.0`,
   kick: (id) => `https://files.kick.com/emotes/${encodeURIComponent(id)}/fullsize`,
   youtube: (id) => id, // YouTube emote ids are complete image URLs
+  youtube_shorts: (id) => id,
 };
 
 // Third-party Twitch emotes (7TV/BTTV/FFZ), name → url, sent by the hub.
@@ -561,12 +573,12 @@ function renderHypeTrain(data) {
 function setStatus(platform, dot, stateText, detail, videoId) {
   state.statuses.set(platform, { platform, dot, state: stateText, detail, video_id: videoId });
   renderStatuses();
-  if (platform === "youtube") renderPlayer(); 
+  if (platform === "youtube" || platform === "youtube_shorts") renderPlayer();
 }
 
 function renderStatuses() {
   if (!statusGridEl) return;
-  const statuses = ["twitch", "youtube", "kick", "tiktok"].map((platform) =>
+  const statuses = ["twitch", "youtube", "youtube_shorts", "kick", "tiktok"].map((platform) =>
     state.statuses.get(platform) || { platform, dot: "idle", state: "idle", detail: "Not connected" }
   );
   statusGridEl.innerHTML = statuses.map((status) => `
@@ -701,10 +713,11 @@ function connectFromInputs({ updateUrl = true } = {}) {
   if (updateUrl) {
     const params = new URLSearchParams(window.location.search);
     for (const [platform, channel] of Object.entries(channels)) {
+      const key = PLATFORM_QUERY_PARAMS[platform];
       if (channel) {
-        params.set(platform, channel);
+        params.set(key, channel);
       } else {
-        params.delete(platform);
+        params.delete(key);
       }
     }
     const query = params.toString();
@@ -937,7 +950,7 @@ if (togglePlatform) {
 
 // Stream player (popout + expanded chat). Twitch embeds require HTTPS (localhost excepted).
 const PLAYER_STORAGE_KEY = "popoutPlayer";
-const PLAYER_PLATFORMS = ["twitch", "kick", "youtube"];
+const PLAYER_PLATFORMS = ["twitch", "kick", "youtube", "youtube_shorts"];
 
 // Embed URL for a platform, or null when it can't be played right now.
 function playerEmbedSrc(platform) {
@@ -948,8 +961,9 @@ function playerEmbedSrc(platform) {
       return `https://player.twitch.tv/?channel=${encodeURIComponent(channel)}&parent=${encodeURIComponent(window.location.hostname)}&muted=true&autoplay=true`;
     case "kick":
       return `https://player.kick.com/${encodeURIComponent(channel)}?muted=true&autoplay=true`;
-    case "youtube": {
-      const videoId = state.statuses.get("youtube")?.video_id;
+    case "youtube":
+    case "youtube_shorts": {
+      const videoId = state.statuses.get(platform)?.video_id;
       return videoId
         ? `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&mute=1`
         : null;
@@ -1008,13 +1022,14 @@ function renderPlayer() {
     return;
   }
   if (!playerState.source) {
-    playerFrameEl.innerHTML = `<div class="player-empty">Connect a live Twitch, Kick or YouTube channel to watch the stream here.</div>`;
+    playerFrameEl.innerHTML = `<div class="player-empty">Connect a live Twitch, Kick, YouTube or YouTube Shorts channel to watch the stream here.</div>`;
     return;
   }
   const src = playerEmbedSrc(playerState.source);
   // Reloading the iframe restarts playback (and Twitch pre-rolls) — skip if unchanged.
   if (playerFrameEl.querySelector("iframe")?.src === src) return;
-  playerFrameEl.innerHTML = `<iframe src="${escapeHtml(src)}" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
+  const verticalClass = playerState.source === "youtube_shorts" ? " vertical" : "";
+  playerFrameEl.innerHTML = `<iframe class="${verticalClass.trim()}" src="${escapeHtml(src)}" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
 }
 
 if (playerToggleEl) {
@@ -1218,9 +1233,12 @@ function channelsFromLocation() {
     stored = JSON.parse(window.localStorage.getItem("channels") || "{}");
   } catch (_) {}
   // A shared link (URL params) wins over what this browser last watched.
-  const fromUrl = PLATFORMS.some((platform) => params.has(platform));
+  const fromUrl = PLATFORMS.some((platform) => params.has(PLATFORM_QUERY_PARAMS[platform]));
   return Object.fromEntries(
-    PLATFORMS.map((platform) => [platform, ((fromUrl ? params.get(platform) : stored[platform]) || "").trim()])
+    PLATFORMS.map((platform) => [
+      platform,
+      ((fromUrl ? params.get(PLATFORM_QUERY_PARAMS[platform]) : stored[platform]) || "").trim(),
+    ])
   );
 }
 
@@ -1244,10 +1262,11 @@ function applyPopoutChannels(channels) {
   // Start from the current query so non-channel params (overlay, fade) survive.
   const params = new URLSearchParams(window.location.search);
   for (const platform of PLATFORMS) {
+    const key = PLATFORM_QUERY_PARAMS[platform];
     if (channels[platform]) {
-      params.set(platform, channels[platform]);
+      params.set(key, channels[platform]);
     } else {
-      params.delete(platform);
+      params.delete(key);
     }
   }
   const query = params.toString();

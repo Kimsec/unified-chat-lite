@@ -8,6 +8,7 @@
     --accent: #f7f4ea;
     --twitch: #9146ff;
     --youtube: #ff0000;
+    --youtube-shorts: #ff0033;
     --kick: #53fc18;
     --tiktok: #25f4ee;
     --ok: #73f0a8;
@@ -216,6 +217,10 @@ h2 {
 
 .channel-field[data-platform="youtube"] .channel-label {
     color: var(--youtube);
+}
+
+.channel-field[data-platform="youtube_shorts"] .channel-label {
+    color: var(--youtube-shorts);
 }
 
 .channel-field[data-platform="kick"] .channel-label {
@@ -466,6 +471,15 @@ h2 {
 .filter-button.active[data-platform="youtube"] .chip-dot {
     background: var(--youtube);
     box-shadow: 0 0 8px var(--youtube);
+}
+
+.filter-button.active[data-platform="youtube_shorts"] {
+    border-color: rgba(255, 0, 51, 0.5);
+}
+
+.filter-button.active[data-platform="youtube_shorts"] .chip-dot {
+    background: var(--youtube-shorts);
+    box-shadow: 0 0 8px var(--youtube-shorts);
 }
 
 .filter-button.active[data-platform="kick"] {
@@ -803,6 +817,10 @@ h2 {
     background: rgba(255, 0, 0, 0.16);
 }
 
+.platform-pill.youtube_shorts {
+    background: rgba(255, 0, 51, 0.16);
+}
+
 .platform-pill.kick {
     background: rgba(83, 252, 24, 0.18);
     color: #d7ffd0;
@@ -958,6 +976,13 @@ h2 {
     border: none;
 }
 
+.player-frame iframe.vertical {
+    width: auto;
+    height: 55vh;
+    aspect-ratio: 9 / 16;
+    margin: 0 auto;
+}
+
 .player-empty {
     padding: 26px 16px;
     text-align: center;
@@ -1032,6 +1057,10 @@ h2 {
 
 .player-source.active[data-platform="twitch"] {
     border-color: rgba(145, 70, 255, 0.65);
+}
+
+.player-source.active[data-platform="youtube_shorts"] {
+    border-color: rgba(255, 0, 51, 0.65);
 }
 
 .player-source.active[data-platform="kick"] {
