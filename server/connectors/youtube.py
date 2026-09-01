@@ -9,9 +9,12 @@ YouTube web player itself uses. Flow per channel:
   3. POST youtubei/v1/live_chat/get_live_chat with the continuation, render
      the actions, repeat with the next continuation at the pace YouTube asks
 
-Unlike Twitch/Kick there is no push socket, so this polls — one task per
-channel. If the channel is not live we recheck every 60s and attach when it
-goes live. Requests use curl_cffi with a Chrome fingerprint plus the SOCS
+Unlike Twitch/Kick there is no push socket, so this polls. A channel can run
+a regular live and a live Short at the same time; /@handle/live only ever
+resolves to one of them, so the Shorts tab is scanned too and every live
+broadcast found gets its own chat task, all feeding the same channel key.
+If the channel is not live we recheck every 60s and attach when it goes
+live. Requests use curl_cffi with a Chrome fingerprint plus the SOCS
 consent cookie so EU consent redirects don't get in the way.
 """
 from __future__ import annotations
@@ -37,6 +40,12 @@ CANONICAL_WATCH_RE = re.compile(
 API_KEY_RE = re.compile(r'"INNERTUBE_API_KEY":"([^"]+)"')
 CLIENT_VERSION_RE = re.compile(r'"INNERTUBE_CONTEXT_CLIENT_VERSION":"([^"]+)"')
 CONTINUATION_RE = re.compile(r'"continuation":"([^"]+)"')
+
+# Shorts tab (/@handle/shorts): each grid item is a shortsLockupViewModel
+
+SHORTS_ITEM_RE = re.compile(r'"shortsLockupViewModel":\{"entityId":"shorts-shelf-item-([\w-]{11})"')
+SHORTS_LIVE_RE = re.compile(r'"liveBadgeText"|"badgeStyle":"THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE"')
+SHORTS_BLOCK_WINDOW = 4000
 
 
 def parse_runs(runs: list[dict]) -> tuple[str, list[dict]]:
@@ -89,34 +98,77 @@ class YouTubeChat:
 
     async def _run(self, name: str) -> None:
         backoff = 5.0
+        chats: dict[str, asyncio.Task] = {}
+        try:
+            while True:
+                try:
+                    async with AsyncSession(impersonate="chrome", cookies=COOKIES) as session:
+                        live_ids = await self._find_live_videos(session, name)
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    logger.warning("youtube lookup error for %s: %s", name, exc)
+                    if any(not task.done() for task in chats.values()):
+                        await asyncio.sleep(OFFLINE_RECHECK_SECONDS)
+                    else:
+                        await self.hub.publish_status(
+                            self.platform, name, "error", "error",
+                            f"{exc} — retrying in {int(backoff)}s",
+                        )
+                        await asyncio.sleep(backoff)
+                        backoff = min(backoff * 2, 60.0)
+                    continue
+                backoff = 5.0
+
+                for video_id in [vid for vid, task in chats.items() if task.done()]:
+                    del chats[video_id]
+                if live_ids:
+                    suffix = " (+ live Short)" if len(live_ids) > 1 else ""
+                    for video_id in live_ids:
+                        if video_id not in chats:
+                            # Only the featured broadcast owns the status card
+                            # (and the player's video id).
+                            detail = (
+                                f"Connected to @{name.lstrip('@')}{suffix}"
+                                if video_id == live_ids[0] else None
+                            )
+                            chats[video_id] = asyncio.create_task(
+                                self._chat_loop(name, video_id, chats, detail)
+                            )
+                elif not chats:
+                    await self.hub.publish_status(
+                        self.platform, name, "warn", "offline",
+                        f"Not live right now — rechecking every {OFFLINE_RECHECK_SECONDS}s",
+                    )
+                await asyncio.sleep(OFFLINE_RECHECK_SECONDS)
+        except asyncio.CancelledError:
+            for task in chats.values():
+                task.cancel()
+            raise
+
+    async def _chat_loop(
+        self, name: str, video_id: str, chats: dict[str, asyncio.Task],
+        status_detail: str | None,
+    ) -> None:
+        backoff = 5.0
         while True:
             try:
                 async with AsyncSession(impersonate="chrome", cookies=COOKIES) as session:
-                    video_id = await self._find_live_video(session, name)
-                    if video_id is None:
-                        await self.hub.publish_status(
-                            self.platform, name, "warn", "offline",
-                            f"Not live right now — rechecking every {OFFLINE_RECHECK_SECONDS}s",
-                        )
-                        await asyncio.sleep(OFFLINE_RECHECK_SECONDS)
-                        continue
-
                     bootstrap = await self._chat_bootstrap(session, video_id)
                     if bootstrap is None:
-                        await self.hub.publish_status(
-                            self.platform, name, "warn", "offline",
-                            "Live page found but no chat yet — rechecking",
-                        )
-                        await asyncio.sleep(OFFLINE_RECHECK_SECONDS)
-                        continue
-
+                        if status_detail:
+                            await self.hub.publish_status(
+                                self.platform, name, "warn", "offline",
+                                "Live page found but no chat yet — rechecking",
+                            )
+                        return
                     api_key, client_version, first_continuation = bootstrap
                     continuation: str | None = first_continuation
-                    await self.hub.publish_status(
-                        self.platform, name, "ok", "connected",
-                        f"Connected to @{name.lstrip('@')}",
-                        video_id=video_id,
-                    )
+                    if status_detail:
+                        await self.hub.publish_status(
+                            self.platform, name, "ok", "connected",
+                            status_detail, video_id=video_id,
+                        )
                     backoff = 5.0
 
                     while continuation:
@@ -125,20 +177,24 @@ class YouTubeChat:
                         if continuation:
                             await asyncio.sleep(max(timeout_ms, 800) / 1000)
 
-                    # Stream (or just the chat) ended; fall through to the
-                    # liveness recheck.
-                    await self.hub.publish_status(
-                        self.platform, name, "warn", "offline",
-                        "Live chat ended — rechecking",
-                    )
+                    if not any(
+                        not task.done()
+                        for vid, task in chats.items() if vid != video_id
+                    ):
+                        await self.hub.publish_status(
+                            self.platform, name, "warn", "offline",
+                            "Live chat ended — rechecking",
+                        )
+                    return
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
                 logger.warning("youtube chat error for %s: %s", name, exc)
-                await self.hub.publish_status(
-                    self.platform, name, "error", "error",
-                    f"{exc} — retrying in {int(backoff)}s",
-                )
+                if status_detail:
+                    await self.hub.publish_status(
+                        self.platform, name, "error", "error",
+                        f"{exc} — retrying in {int(backoff)}s",
+                    )
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 60.0)
 
@@ -151,11 +207,32 @@ class YouTubeChat:
             response = await session.get(url, timeout=20)
             if response.status_code >= 400:
                 continue
-            # An offline channel redirects to its home page, whose canonical
-            # URL is the channel itself — only live pages canonicalize to
-            # /watch?v=.
             match = CANONICAL_WATCH_RE.search(response.text)
             if match:
+                return match.group(1)
+        return None
+
+    async def _find_live_videos(self, session: AsyncSession, name: str) -> list[str]:
+        """Every live broadcast currently running, featured first. /live only
+        ever resolves to one broadcast, so the Shorts tab is scanned too."""
+        featured, short = await asyncio.gather(
+            self._find_live_video(session, name),
+            self._find_live_short(session, name),
+        )
+        return list(dict.fromkeys(vid for vid in (featured, short) if vid))
+
+    async def _find_live_short(self, session: AsyncSession, name: str) -> str | None:
+        handle = name if name.startswith("@") else f"@{name}"
+        response = await session.get(f"https://www.youtube.com/{handle}/shorts", timeout=20)
+        if response.status_code >= 400:
+            return None
+        html = response.text
+        matches = list(SHORTS_ITEM_RE.finditer(html))
+        for i, match in enumerate(matches):
+            end = match.start() + SHORTS_BLOCK_WINDOW
+            if i + 1 < len(matches):
+                end = min(end, matches[i + 1].start())
+            if SHORTS_LIVE_RE.search(html, match.start(), end):
                 return match.group(1)
         return None
 
