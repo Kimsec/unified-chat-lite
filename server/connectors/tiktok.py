@@ -20,8 +20,12 @@ from TikTokLive.events import (
     ConnectEvent,
     GiftEvent,
     LiveEndEvent,
-    SubscribeEvent,
 )
+
+try:
+    from TikTokLive.events import SubNotifyEvent as SubscribeEvent
+except ImportError:  # TikTokLive < 7 used the old name
+    from TikTokLive.events import SubscribeEvent
 
 try:
     from TikTokLive.client.errors import UserNotFoundError, UserOfflineError
