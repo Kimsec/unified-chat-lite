@@ -77,7 +77,7 @@ Append to the overlay link, e.g.
 
 | Parameter | Default | Does |
 |---|---|---|
-| `fade=<s>` | 60 | seconds before a message fades out |
+| `fade=<s>` | 60 | seconds before a message fades out; `0` = never fade |
 | `size=<px>` | – | text size |
 | `align=right` | left | right-align messages |
 | `max=<n>` | 200 | max messages on screen |
@@ -113,6 +113,14 @@ services:
       - "8100:8000"
 ```
 Run `docker compose up -d`
+
+### Announcement banner
+
+Show a site-wide banner (e.g. "The app is updating in a moment — please refresh in a few seconds") without restarting:
+
+- Set the `ANNOUNCE_TOKEN` env var on the container
+- Post: `curl -X POST http://host:8100/announce -H "content-type: application/json" -d '{"token":"<token>","text":"Maintenance at 18:00 UTC — a few seconds, refresh after."}'`
+- Clear: same call with `"text":""` (a restart also clears it)
 
 
 
