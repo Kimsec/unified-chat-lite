@@ -5,6 +5,7 @@ const pageParams = new URLSearchParams(window.location.search);
 const isOverlay = isPopout && (window.location.pathname === "/overlay" || pageParams.has("overlay"));
 const OVERLAY_FADE_MS = Math.max(Number(pageParams.get("fade")) || 60, 5) * 1000;
 const OVERLAY_FADE_OUT_MS = 2500;
+const OVERLAY_NEVER_FADE = pageParams.get("fade") === "0";
 const overlayOptions = {
   size: Math.min(Math.max(Number(pageParams.get("size")) || 0, 0), 64),
   alignRight: pageParams.get("align") === "right",
@@ -17,6 +18,7 @@ if (isOverlay) {
   if (overlayOptions.size) root.style.setProperty("--overlay-font", `${overlayOptions.size}px`);
   if (overlayOptions.alignRight) root.classList.add("overlay-align-right");
   if (!overlayOptions.icons) root.classList.add("overlay-no-icons");
+  if (OVERLAY_NEVER_FADE) root.classList.add("overlay-no-fade");
 }
 
 // Expand (?expand=1): the main page expands into the popout layout in place.
@@ -221,8 +223,8 @@ const EMOTE_IMAGE_URLS = {
   youtube: (id) => id, // YouTube emote ids are complete image URLs
 };
 
-// Third-party Twitch emotes (7TV/BTTV/FFZ), name → url, sent by the hub.
-let thirdPartyEmotes = new Map();
+// Third-party emotes (7TV/BTTV/FFZ), platform → (name → url), sent by the hub.
+const thirdPartyEmotes = new Map();
 
 const THIRD_PARTY_EMOTES_STORAGE_KEY = "showThirdPartyEmotes";
 let showThirdPartyEmotes = readThirdPartyEmotesPreference();
@@ -267,15 +269,15 @@ function cheermoteMarkup(word) {
 }
 
 function renderPlainText(text, platform, bits) {
-  if (platform !== "twitch") return linkifyText(text);
-  const useEmotes = showThirdPartyEmotes && thirdPartyEmotes.size;
-  if (!useEmotes && !bits) return linkifyText(text);
+  if (platform !== "twitch" && platform !== "kick") return linkifyText(text);
+  const emoteMap = showThirdPartyEmotes ? thirdPartyEmotes.get(platform) : undefined;
+  if (!emoteMap?.size && !bits) return linkifyText(text);
   return text.split(" ").map((word) => {
     if (bits) {
       const cheer = cheermoteMarkup(word);
       if (cheer) return cheer;
     }
-    const url = useEmotes ? thirdPartyEmotes.get(word) : undefined;
+    const url = emoteMap?.get(word);
     return url ? emoteImg(url, word) : linkifyText(word);
   }).join(" ");
 }
@@ -450,7 +452,7 @@ function markDeleted(predicate) {
 
 // Negative delay resumes the fade mid-life after a DOM rebuild.
 function overlayFadeStyle(message) {
-  if (!isOverlay) return "";
+  if (!isOverlay || OVERLAY_NEVER_FADE) return "";
   const age = Math.max(Date.now() - new Date(message.timestamp).getTime(), 0);
   return ` style="animation-delay: ${OVERLAY_FADE_MS - OVERLAY_FADE_OUT_MS - age}ms"`;
 }
@@ -667,14 +669,51 @@ class HubConnection {
         setStatus(payload.status.platform, payload.status.dot, payload.status.state, payload.status.detail, payload.status.video_id);
         break;
       case "emotes":
-        thirdPartyEmotes = new Map(Object.entries(payload.emotes || {}));
+        thirdPartyEmotes.set(payload.platform || "twitch", new Map(Object.entries(payload.emotes || {})));
         renderMessages();
         break;
       case "hype_train":
         handleHypeTrain(payload);
         break;
+      case "announce":
+        showAnnouncement(String(payload.text || ""));
+        break;
     }
   }
+}
+
+// Site-wide announcement banner, pushed by the server. Not on the overlay —
+// that renders on stream. Dismissal lasts until the text changes. Fetched
+// once on load too: without a connected channel there is no websocket.
+let dismissedAnnouncement = "";
+
+if (!isOverlay) {
+  fetch("/announcement")
+    .then((response) => response.json())
+    .then((data) => showAnnouncement(String(data.text || "")))
+    .catch(() => {});
+}
+
+function showAnnouncement(text) {
+  const existing = document.getElementById("announce-banner");
+  if (isOverlay || !text || text === dismissedAnnouncement) {
+    existing?.remove();
+    document.body.classList.remove("has-announcement");
+    return;
+  }
+  const banner = existing || document.createElement("div");
+  if (!existing) {
+    banner.id = "announce-banner";
+    banner.innerHTML = `<span></span><button type="button" title="Dismiss">&#x2715;</button>`;
+    banner.querySelector("button").addEventListener("click", () => {
+      dismissedAnnouncement = banner.querySelector("span").textContent;
+      banner.remove();
+      document.body.classList.remove("has-announcement");
+    });
+    document.body.prepend(banner);
+  }
+  document.body.classList.add("has-announcement");
+  banner.querySelector("span").textContent = text;
 }
 
 // Wiring — elements that only exist on index.html are guarded.
@@ -1268,7 +1307,7 @@ if (isPopout) {
     alertUrls = fromUrl.length ? fromUrl : storedAlertUrls();
     renderAlertFrames();
   }
-  if (isOverlay) {
+  if (isOverlay && !OVERLAY_NEVER_FADE) {
     // Prune messages the fade animation has already hidden.
     setInterval(() => {
       const cutoff = Date.now() - OVERLAY_FADE_MS;
