@@ -8,11 +8,12 @@ the number of unique channels, not the number of users.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from collections import deque
 from typing import Protocol
 
-from .emotes import fetch_channel_emotes
+from .emotes import fetch_channel_emotes, fetch_kick_emotes
 from .models import Message
 
 logger = logging.getLogger(__name__)
@@ -22,8 +23,6 @@ LINGER_SECONDS = 30
 
 
 class Connector(Protocol):
-    # Positional-only (/) so implementations may name the parameter to fit
-    # their platform (channel/slug/name) and still satisfy the protocol.
     async def join(self, channel: str, /) -> None: ...
     async def part(self, channel: str, /) -> None: ...
 
@@ -38,6 +37,12 @@ class Viewer:
     async def send(self, payload: dict) -> None:
         try:
             await self.websocket.send_json(payload)
+        except Exception:
+            pass
+
+    async def send_text(self, text: str) -> None:
+        try:
+            await self.websocket.send_text(text)
         except Exception:
             pass
 
@@ -85,13 +90,13 @@ class Hub:
         viewer.keys.add(key)
         if created:
             await self.connectors[platform].join(channel)
-        if platform == "twitch":
+        if platform in ("twitch", "kick"):
             if handle.emotes is not None:
                 await viewer.send(_emotes_payload(handle))
             elif handle.emotes_task is None:
                 handle.emotes_task = asyncio.create_task(self._load_emotes(handle))
-            if handle.hype_train:
-                await viewer.send({"type": "hype_train", "channel": channel, **handle.hype_train})
+        if platform == "twitch" and handle.hype_train:
+            await viewer.send({"type": "hype_train", "channel": channel, **handle.hype_train})
 
     async def unsubscribe(self, viewer: Viewer, key: tuple[str, str]) -> None:
         viewer.keys.discard(key)
@@ -121,8 +126,9 @@ class Hub:
         await self.connectors[platform].part(channel)
 
     async def _load_emotes(self, handle: ChannelHandle) -> None:
+        fetch = fetch_kick_emotes if handle.key[0] == "kick" else fetch_channel_emotes
         try:
-            handle.emotes = await fetch_channel_emotes(handle.key[1])
+            handle.emotes = await fetch(handle.key[1])
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -196,7 +202,12 @@ class Hub:
         await self._broadcast(handle, {"type": "status", "status": handle.status})
 
     async def _broadcast(self, handle: ChannelHandle, payload: dict) -> None:
-        await asyncio.gather(*(viewer.send(payload) for viewer in handle.viewers))
+        try:
+            text = json.dumps(payload, separators=(",", ":"))
+        except (TypeError, ValueError) as exc:
+            logger.warning("unserializable broadcast payload: %s", exc)
+            return
+        await asyncio.gather(*(viewer.send_text(text) for viewer in handle.viewers))
 
     def bootstrap_payload(self, viewer: Viewer) -> dict:
         messages: list[dict] = []
@@ -212,4 +223,9 @@ class Hub:
 
 
 def _emotes_payload(handle: ChannelHandle) -> dict:
-    return {"type": "emotes", "channel": handle.key[1], "emotes": handle.emotes or {}}
+    return {
+        "type": "emotes",
+        "platform": handle.key[0],
+        "channel": handle.key[1],
+        "emotes": handle.emotes or {},
+    }
