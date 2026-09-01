@@ -114,12 +114,20 @@ services:
 ```
 Run `docker compose up -d`
 
-### Announcement banner
+### Announcement banner (optional)
 
-Show a site-wide banner (e.g. "The app is updating in a moment — please refresh in a few seconds") without restarting:
+Push a site-wide banner (e.g. "The app is updating in a moment — please refresh in a few seconds") without restarting. Off by default; mainly useful when hosting for other people.
 
-- Set the `ANNOUNCE_TOKEN` env var on the container (see the commented line above), then recreate it
-- Post from the machine running Docker — no need to enter the container:
+To enable, add to the service in `docker-compose.yml`:
+
+```yaml
+    environment:
+      - ANNOUNCE_TOKEN=${ANNOUNCE_TOKEN:-}
+```
+
+Put the secret in a `.env` file next to it (`ANNOUNCE_TOKEN=<openssl rand -hex 32>`), then `docker compose up -d`.
+
+Usage, from the machine running Docker (or your public domain — the token is the gate):
 
 ```bash
 curl -X POST http://localhost:8100/announce \
@@ -127,8 +135,8 @@ curl -X POST http://localhost:8100/announce \
   -d '{"token":"<your token>","text":"Maintenance at 18:00 UTC — a few seconds, refresh after."}'
 ```
 
-- Works against your public domain too (`https://your-domain/announce`)
 - Clear: same call with `"text":""` (a restart also clears it)
+- Without a token configured the endpoint answers 404
 
 
 
