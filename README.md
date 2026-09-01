@@ -12,8 +12,8 @@
   👉<a href="https://unified-chat.com/">Try it here</a>
 </p>
 <p align="center">
-  <a href="https://status.kimsec.net/api/badge/16/status">
-  <img src="https://status.kimsec.net/api/badge/16/status" alt="Uptime status"></a>
+  <a href="https://status.kimsec.net/api/badge/16/uptime/30d?labelSuffix=d">
+  <img src="https://status.kimsec.net/api/badge/16/uptime/30d?labelSuffix=d" alt="Uptime status"></a>
 </p>
 <br>
 <p align="center" width="100%">
