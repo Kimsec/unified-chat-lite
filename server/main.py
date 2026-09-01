@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
+import secrets
 from pathlib import Path
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -29,6 +31,13 @@ CHANNEL_PATTERNS = {
     "youtube": re.compile(r"^@?[a-z0-9._-]{1,50}$"),
     "tiktok": re.compile(r"^@?[a-z0-9._]{1,50}$"),
 }
+
+# Site-wide announcement banner
+# a restart (the maintenance itself) clears it.
+ANNOUNCE_TOKEN = os.getenv("ANNOUNCE_TOKEN", "")
+ANNOUNCE_MAX_CHARS = 300
+announcement = {"text": ""}
+viewers: set[Viewer] = set()
 
 app = FastAPI(title="Unified Chat Lite")
 stats = Stats()
@@ -54,6 +63,9 @@ async def viewer_socket(websocket: WebSocket) -> None:
     await websocket.accept()
     viewer = Viewer(websocket)
     stats.connection_opened()
+    viewers.add(viewer)
+    if announcement["text"]:
+        await viewer.send({"type": "announce", "text": announcement["text"]})
     try:
         while True:
             payload = await websocket.receive_json()
@@ -62,6 +74,7 @@ async def viewer_socket(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         pass
     finally:
+        viewers.discard(viewer)
         stats.connection_closed()
         await hub.drop_viewer(viewer)
 
@@ -82,6 +95,30 @@ async def handle_subscribe(viewer: Viewer, channels: dict) -> None:
         await hub.subscribe(viewer, platform, channel)
 
     await viewer.send(hub.bootstrap_payload(viewer))
+
+
+@app.get("/announcement")
+async def get_announcement() -> dict:
+    return {"text": announcement["text"]}
+
+
+@app.post("/announce")
+async def announce(request: Request) -> dict:
+    if not ANNOUNCE_TOKEN:
+        raise HTTPException(status_code=404)
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400)
+    token = str(data.get("token") or "")
+    if not secrets.compare_digest(token, ANNOUNCE_TOKEN):
+        raise HTTPException(status_code=403)
+    text = str(data.get("text") or "").strip()[:ANNOUNCE_MAX_CHARS]
+    announcement["text"] = text
+    await asyncio.gather(
+        *(viewer.send({"type": "announce", "text": text}) for viewer in list(viewers))
+    )
+    return {"ok": True, "viewers": len(viewers)}
 
 
 @app.get("/health")
