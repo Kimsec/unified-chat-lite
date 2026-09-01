@@ -1340,6 +1340,71 @@ html.overlay-no-icons .platform-pill {
     display: none;
 }
 
+html.overlay-no-fade .message-card {
+    animation: none;
+}
+
+/* Thin strip at the very top. The main page has empty body padding up
+   there, so the banner just overlays it without moving anything; expand
+   mode fills the window edge-to-edge, so there it sits in normal flow
+   and pushes the page down instead. */
+#announce-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 4px 14px;
+    background: var(--bg-strong);
+    border-bottom: 1px solid rgba(255, 209, 102, 0.3);
+    color: var(--text);
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+html.expand-mode #announce-banner {
+    position: static;
+}
+
+#announce-banner::before {
+    content: "";
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--warn);
+    box-shadow: 0 0 6px var(--warn);
+}
+
+#announce-banner button {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.8rem;
+    padding: 0 6px;
+}
+
+#announce-banner button:hover {
+    color: var(--text);
+}
+
+html.expand-mode body.has-announcement {
+    display: flex;
+    flex-direction: column;
+}
+
+html.expand-mode body.has-announcement .app-shell {
+    width: 100%;
+    height: auto;
+    flex: 1;
+    min-height: 0;
+}
+
 @keyframes overlay-fade {
     from {
         opacity: 1;
