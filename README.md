@@ -118,8 +118,16 @@ Run `docker compose up -d`
 
 Show a site-wide banner (e.g. "The app is updating in a moment — please refresh in a few seconds") without restarting:
 
-- Set the `ANNOUNCE_TOKEN` env var on the container
-- Post: `curl -X POST http://host:8100/announce -H "content-type: application/json" -d '{"token":"<token>","text":"Maintenance at 18:00 UTC — a few seconds, refresh after."}'`
+- Set the `ANNOUNCE_TOKEN` env var on the container (see the commented line above), then recreate it
+- Post from the machine running Docker — no need to enter the container:
+
+```bash
+curl -X POST http://localhost:8100/announce \
+  -H "content-type: application/json" \
+  -d '{"token":"<your token>","text":"Maintenance at 18:00 UTC — a few seconds, refresh after."}'
+```
+
+- Works against your public domain too (`https://your-domain/announce`)
 - Clear: same call with `"text":""` (a restart also clears it)
 
 
