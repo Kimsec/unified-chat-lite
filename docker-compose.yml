@@ -6,5 +6,3 @@ services:
     restart: unless-stopped
     ports:
       - "8100:8000"
-    # environment:
-    #   - ANNOUNCE_TOKEN=change-me  # enables POST /announce (see README)
