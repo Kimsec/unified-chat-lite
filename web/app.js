@@ -682,9 +682,8 @@ class HubConnection {
   }
 }
 
-// Site-wide announcement banner, pushed by the server. Not on the overlay —
-// that renders on stream. Dismissal lasts until the text changes. Fetched
-// once on load too: without a connected channel there is no websocket.
+// Server-pushed banner; also fetched on load since pages without a
+// connected channel hold no websocket. Never shown on the OBS overlay.
 let dismissedAnnouncement = "";
 
 if (!isOverlay) {
