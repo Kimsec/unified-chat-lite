@@ -2,4 +2,4 @@ fastapi
 uvicorn[standard]
 websockets
 curl_cffi
-TikTokLive>=7
+TikTokLive>=7.0.1
