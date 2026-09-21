@@ -1344,10 +1344,8 @@ html.overlay-no-fade .message-card {
     animation: none;
 }
 
-/* Thin strip at the very top. The main page has empty body padding up
-   there, so the banner just overlays it without moving anything; expand
-   mode fills the window edge-to-edge, so there it sits in normal flow
-   and pushes the page down instead. */
+/* Overlays the main page's empty top padding; expand mode goes edge-to-edge,
+   so there it sits in flow and pushes the page down instead. */
 #announce-banner {
     position: fixed;
     top: 0;
