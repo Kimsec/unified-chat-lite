@@ -43,6 +43,12 @@ logger = logging.getLogger(__name__)
 OFFLINE_RECHECK_SECONDS = 60
 
 
+def _msg_id(event) -> str | None:
+    """Webcast message id — on event.common since TikTokLive 7."""
+    msg_id = getattr(getattr(event, "common", None), "msg_id", None)
+    return str(msg_id) if msg_id else None
+
+
 class TikTokChat:
     platform = "tiktok"
 
@@ -68,6 +74,7 @@ class TikTokChat:
             self._register_handlers(client, name)
             try:
                 await client.connect()  # runs until the stream/connection ends
+                await self._teardown(client)
                 await self.hub.publish_status(
                     self.platform, name, "warn", "offline",
                     f"Stream ended — rechecking every {OFFLINE_RECHECK_SECONDS}s",
@@ -75,12 +82,10 @@ class TikTokChat:
                 backoff = 5.0
                 await asyncio.sleep(OFFLINE_RECHECK_SECONDS)
             except asyncio.CancelledError:
-                try:
-                    await client.disconnect()
-                except Exception:
-                    pass
+                await self._teardown(client)
                 raise
             except UserOfflineError:
+                await self._teardown(client)
                 await self.hub.publish_status(
                     self.platform, name, "warn", "offline",
                     f"Not live right now — rechecking every {OFFLINE_RECHECK_SECONDS}s",
@@ -88,18 +93,28 @@ class TikTokChat:
                 backoff = 5.0
                 await asyncio.sleep(OFFLINE_RECHECK_SECONDS)
             except UserNotFoundError:
+                await self._teardown(client)
                 await self.hub.publish_status(
                     self.platform, name, "error", "not found",
                     f"No TikTok user named @{name.lstrip('@')}",
                 )
                 return
             except Exception as exc:
+                await self._teardown(client)
                 logger.warning("tiktok error for %s: %s", name, exc)
                 await self.hub.publish_status(
                     self.platform, name, "error", "error", f"{exc} — retrying in {int(backoff)}s"
                 )
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 120.0)
+
+    async def _teardown(self, client: TikTokLiveClient) -> None:
+        """connect() only cleans up after cancellation; a leftover live
+        client would duplicate every message."""
+        try:
+            await client.disconnect()
+        except Exception:
+            pass
 
     def _register_handlers(self, client: TikTokLiveClient, name: str) -> None:
         @client.on(ConnectEvent)
@@ -113,7 +128,10 @@ class TikTokChat:
         async def _on_comment(event: CommentEvent) -> None:
             user = event.user
             author = (getattr(user, "nickname", "") or getattr(user, "unique_id", "") or "Unknown")
-            await self._publish(name, author, user, str(event.comment or ""), kind="chat")
+            await self._publish(
+                name, author, user, str(event.comment or ""),
+                kind="chat", message_id=_msg_id(event),
+            )
 
         @client.on(GiftEvent)
         async def _on_gift(event: GiftEvent) -> None:
@@ -126,13 +144,16 @@ class TikTokChat:
             count = getattr(event, "repeat_count", 1) or 1
             gift_name = getattr(gift, "name", "") or "a gift"
             text = f"{author} sent {count}x {gift_name}!" if count > 1 else f"{author} sent {gift_name}!"
-            await self._publish(name, author, user, text, kind="system")
+            await self._publish(name, author, user, text, kind="system", message_id=_msg_id(event))
 
         @client.on(SubscribeEvent)
         async def _on_subscribe(event: SubscribeEvent) -> None:
             user = event.user
             author = (getattr(user, "nickname", "") or getattr(user, "unique_id", "") or "Someone")
-            await self._publish(name, author, user, f"{author} subscribed!", kind="system")
+            await self._publish(
+                name, author, user, f"{author} subscribed!",
+                kind="system", message_id=_msg_id(event),
+            )
 
         @client.on(LiveEndEvent)
         async def _on_live_end(event: LiveEndEvent) -> None:
@@ -140,10 +161,13 @@ class TikTokChat:
                 self.platform, name, "warn", "offline", "Stream ended",
             )
 
-    async def _publish(self, name: str, author: str, user, text: str, *, kind: str) -> None:
+    async def _publish(
+        self, name: str, author: str, user, text: str, *,
+        kind: str, message_id: str | None = None,
+    ) -> None:
         if not text.strip():
             return
-        message_id = getattr(getattr(user, "common", None), "msg_id", None)
+        message_id = message_id or getattr(getattr(user, "common", None), "msg_id", None)
         await self.hub.publish_message(Message(
             platform=self.platform,
             id=str(message_id or f"{time.time()}-{random.random()}"),
