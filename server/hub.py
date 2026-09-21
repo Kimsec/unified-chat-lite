@@ -136,10 +136,12 @@ class Hub:
             handle.emotes = {}
         await self._broadcast(handle, _emotes_payload(handle))
 
-
     async def publish_message(self, message: Message) -> None:
         handle = self.channels.get((message.platform, message.channel))
         if handle is None:
+            return
+        # Upstream reconnects can double-deliver; ids never legitimately repeat.
+        if any(m.id == message.id for m in handle.recent):
             return
         handle.recent.append(message)
         await self._broadcast(handle, {"type": "message", "message": message.to_payload()})
@@ -152,8 +154,6 @@ class Hub:
         message_id: str | None = None,
         author_login: str | None = None,
     ) -> None:
-        """Single deleted message (message_id), ban/timeout (author_login),
-        or full chat clear (neither)."""
         handle = self.channels.get((platform, channel))
         if handle is None:
             return
