@@ -3,9 +3,10 @@
 No API key of our own, no OAuth: this speaks InnerTube — the internal API the
 YouTube web player itself uses. Flow per channel:
 
-  1. GET youtube.com/@handle/live → canonical watch URL → live video id
+  1. GET youtube.com/@handle/live → live video id (canonical watch URL, or
+     currentVideoEndpoint + isLive in newer markup)
   2. GET youtube.com/live_chat?v=<id> → scrape INNERTUBE_API_KEY, client
-     version and the first chat continuation token from the page
+     version and the "Live chat" (all messages) continuation from the page
   3. POST youtubei/v1/live_chat/get_live_chat with the continuation, render
      the actions, repeat with the next continuation at the pace YouTube asks
 
@@ -20,6 +21,7 @@ consent cookie so EU consent redirects don't get in the way.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import random
 import re
@@ -37,11 +39,12 @@ COOKIES = {"SOCS": "CAI"}
 CANONICAL_WATCH_RE = re.compile(
     r'<link rel="canonical" href="https://www\.youtube\.com/watch\?v=([\w-]{11})"'
 )
+# Fallback when canonical renders as href="undefined" (newer markup).
+CURRENT_VIDEO_RE = re.compile(r'"currentVideoEndpoint":\{[^}]*?"url":"/watch\?v=([\w-]{11})"')
 API_KEY_RE = re.compile(r'"INNERTUBE_API_KEY":"([^"]+)"')
 CLIENT_VERSION_RE = re.compile(r'"INNERTUBE_CONTEXT_CLIENT_VERSION":"([^"]+)"')
 CONTINUATION_RE = re.compile(r'"continuation":"([^"]+)"')
-
-# Shorts tab (/@handle/shorts): each grid item is a shortsLockupViewModel
+SUBMENU_RE = re.compile(r'"subMenuItems":(\[.*?\])(?:,"|\})')
 
 SHORTS_ITEM_RE = re.compile(r'"shortsLockupViewModel":\{"entityId":"shorts-shelf-item-([\w-]{11})"')
 SHORTS_LIVE_RE = re.compile(r'"liveBadgeText"|"badgeStyle":"THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE"')
@@ -49,9 +52,7 @@ SHORTS_BLOCK_WINDOW = 4000
 
 
 def parse_runs(runs: list[dict]) -> tuple[str, list[dict]]:
-    """Flatten InnerTube message runs into (text, emotes). Custom channel
-    emojis become emotes whose id is the image URL itself; standard unicode
-    emoji are inlined as plain text."""
+    """Flatten runs into (text, emotes); custom emoji ids are image URLs."""
     parts: list[str] = []
     emotes: list[dict] = []
     length = 0
@@ -76,6 +77,27 @@ def parse_runs(runs: list[dict]) -> tuple[str, list[dict]]:
             parts.append(char)
             length += len(char)
     return "".join(parts), emotes
+
+
+def _all_messages_continuation(html: str) -> str | None:
+    # The page's first bare continuation starves down to paid messages;
+    # the unfiltered "Live chat" mode is the last subMenuItems entry.
+    menu = SUBMENU_RE.search(html)
+    if menu:
+        try:
+            items = json.loads(menu.group(1))
+        except ValueError:
+            items = []
+        for item in reversed(items):
+            if not isinstance(item, dict):
+                continue
+            token = (
+                (item.get("continuation") or {}).get("reloadContinuationData") or {}
+            ).get("continuation")
+            if token:
+                return str(token)
+    match = CONTINUATION_RE.search(html)
+    return match.group(1) if match else None
 
 
 class YouTubeChat:
@@ -126,8 +148,7 @@ class YouTubeChat:
                     suffix = " (+ live Short)" if len(live_ids) > 1 else ""
                     for video_id in live_ids:
                         if video_id not in chats:
-                            # Only the featured broadcast owns the status card
-                            # (and the player's video id).
+                            # The featured broadcast owns the status card.
                             detail = (
                                 f"Connected to @{name.lstrip('@')}{suffix}"
                                 if video_id == live_ids[0] else None
@@ -207,14 +228,17 @@ class YouTubeChat:
             response = await session.get(url, timeout=20)
             if response.status_code >= 400:
                 continue
-            match = CANONICAL_WATCH_RE.search(response.text)
+            html = response.text
+            match = CANONICAL_WATCH_RE.search(html)
             if match:
+                return match.group(1)
+            match = CURRENT_VIDEO_RE.search(html)
+            if match and '"isLive":true' in html:
                 return match.group(1)
         return None
 
     async def _find_live_videos(self, session: AsyncSession, name: str) -> list[str]:
-        """Every live broadcast currently running, featured first. /live only
-        ever resolves to one broadcast, so the Shorts tab is scanned too."""
+        """Every running live broadcast, featured first."""
         featured, short = await asyncio.gather(
             self._find_live_video(session, name),
             self._find_live_short(session, name),
@@ -247,10 +271,10 @@ class YouTubeChat:
         html = response.text
         api_key = API_KEY_RE.search(html)
         client_version = CLIENT_VERSION_RE.search(html)
-        continuation = CONTINUATION_RE.search(html)
+        continuation = _all_messages_continuation(html)
         if not (api_key and client_version and continuation):
             return None
-        return api_key.group(1), client_version.group(1), continuation.group(1)
+        return api_key.group(1), client_version.group(1), continuation
 
     async def _fetch_chat(
         self, session: AsyncSession, api_key: str, client_version: str, continuation: str
@@ -299,8 +323,7 @@ class YouTubeChat:
         return None, 0
 
     async def _publish_system(self, name: str, item: dict) -> None:
-        """Super Chats, Super Stickers, new/renewed memberships and gifted
-        memberships arrive as their own renderer types in the same feed."""
+        """Super Chats/Stickers, memberships and gifts, each its own renderer."""
         paid = item.get("liveChatPaidMessageRenderer")
         sticker = item.get("liveChatPaidStickerRenderer")
         member = item.get("liveChatMembershipItemRenderer")
