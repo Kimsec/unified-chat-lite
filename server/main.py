@@ -32,8 +32,7 @@ CHANNEL_PATTERNS = {
     "tiktok": re.compile(r"^@?[a-z0-9._]{1,50}$"),
 }
 
-# Site-wide announcement banner
-# a restart (the maintenance itself) clears it.
+# Site-wide announcement banner; in-memory on purpose — a restart clears it.
 ANNOUNCE_TOKEN = os.getenv("ANNOUNCE_TOKEN", "")
 ANNOUNCE_MAX_CHARS = 300
 announcement = {"text": ""}
