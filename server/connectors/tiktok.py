@@ -38,6 +38,14 @@ except Exception:  # library layout changed — fall back to generic handling
 
 from ..models import Message
 
+# TikTok's edge 403s non-US requests carrying the library's default
+# datacenter cookie; drop it and let TikTok route by IP.
+try:
+    from TikTokLive.client.web.web_settings import WebDefaults
+    WebDefaults.web_client_cookies.pop("tt-target-idc", None)
+except Exception:
+    pass
+
 logger = logging.getLogger(__name__)
 
 OFFLINE_RECHECK_SECONDS = 60
