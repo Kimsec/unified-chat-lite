@@ -12,7 +12,7 @@ import logging
 
 from curl_cffi.requests import AsyncSession
 
-from .connectors.kick import CHANNEL_API as KICK_CHANNEL_API
+from .connectors.kick import fetch_channel as fetch_kick_channel
 from .connectors.twitch import GQL_CLIENT_ID, GQL_URL
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,11 @@ async def fetch_channel_emotes(channel: str) -> dict[str, str]:
 async def fetch_kick_emotes(slug: str) -> dict[str, str]:
     async with AsyncSession(impersonate="chrome") as session:
         emotes = dict(await _stv_globals(session))
-        data = await _get_json(session, KICK_CHANNEL_API.format(slug=slug))
+        try:
+            data = await fetch_kick_channel(slug)  # shared with the chat lookup
+        except Exception as exc:
+            logger.warning("kick channel lookup for emotes failed for %s: %s", slug, exc)
+            data = None
         user_id = (data or {}).get("user_id")
         if user_id:
             stv = await _get_json(session, f"https://7tv.io/v3/users/kick/{user_id}")

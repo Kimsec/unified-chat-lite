@@ -41,6 +41,8 @@ CANONICAL_WATCH_RE = re.compile(
 )
 # Fallback when canonical renders as href="undefined" (newer markup).
 CURRENT_VIDEO_RE = re.compile(r'"currentVideoEndpoint":\{[^}]*?"url":"/watch\?v=([\w-]{11})"')
+# Live watch pages carry the concurrent viewer count in videoViewCountRenderer.
+LIVE_VIEWERS_RE = re.compile(r'"originalViewCount":"(\d+)"')
 API_KEY_RE = re.compile(r'"INNERTUBE_API_KEY":"([^"]+)"')
 CLIENT_VERSION_RE = re.compile(r'"INNERTUBE_CONTEXT_CLIENT_VERSION":"([^"]+)"')
 CONTINUATION_RE = re.compile(r'"continuation":"([^"]+)"')
@@ -106,6 +108,7 @@ class YouTubeChat:
     def __init__(self, hub):
         self.hub = hub
         self.tasks: dict[str, asyncio.Task] = {}
+        self.live_viewers: dict[str, int | None] = {}  # read off the featured /live page
 
     async def join(self, name: str) -> None:
         await self.hub.publish_status(
@@ -115,6 +118,7 @@ class YouTubeChat:
 
     async def part(self, name: str) -> None:
         task = self.tasks.pop(name, None)
+        self.live_viewers.pop(name, None)
         if task is not None:
             task.cancel()
 
@@ -141,6 +145,9 @@ class YouTubeChat:
                         backoff = min(backoff * 2, 60.0)
                     continue
                 backoff = 5.0
+                await self.hub.publish_viewers(
+                    self.platform, name, self.live_viewers.get(name) if live_ids else None
+                )
 
                 for video_id in [vid for vid, task in chats.items() if task.done()]:
                     del chats[video_id]
@@ -230,10 +237,13 @@ class YouTubeChat:
                 continue
             html = response.text
             match = CANONICAL_WATCH_RE.search(html)
+            if not match:
+                match = CURRENT_VIDEO_RE.search(html)
+                if not (match and '"isLive":true' in html):
+                    match = None
             if match:
-                return match.group(1)
-            match = CURRENT_VIDEO_RE.search(html)
-            if match and '"isLive":true' in html:
+                viewers = LIVE_VIEWERS_RE.search(html)
+                self.live_viewers[name] = int(viewers.group(1)) if viewers else None
                 return match.group(1)
         return None
 

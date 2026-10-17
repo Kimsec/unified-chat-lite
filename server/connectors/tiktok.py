@@ -20,6 +20,7 @@ from TikTokLive.events import (
     ConnectEvent,
     GiftEvent,
     LiveEndEvent,
+    RoomUserSeqEvent,
 )
 
 try:
@@ -163,8 +164,14 @@ class TikTokChat:
                 kind="system", message_id=_msg_id(event),
             )
 
+        @client.on(RoomUserSeqEvent)
+        async def _on_viewers(event: RoomUserSeqEvent) -> None:
+            # total = viewers in the room right now (total_user is cumulative).
+            await self.hub.publish_viewers(self.platform, name, int(event.total or 0))
+
         @client.on(LiveEndEvent)
         async def _on_live_end(event: LiveEndEvent) -> None:
+            await self.hub.publish_viewers(self.platform, name, None)
             await self.hub.publish_status(
                 self.platform, name, "warn", "offline", "Stream ended",
             )

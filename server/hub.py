@@ -65,6 +65,7 @@ class ChannelHandle:
         self.emotes: dict[str, str] | None = None
         self.emotes_task: asyncio.Task | None = None
         self.hype_train: dict | None = None
+        self.viewer_count: int | None = None  # live viewers; None while offline/unknown
 
 
 class Hub:
@@ -201,6 +202,13 @@ class Hub:
             handle.status["video_id"] = video_id
         await self._broadcast(handle, {"type": "status", "status": handle.status})
 
+    async def publish_viewers(self, platform: str, channel: str, count: int | None) -> None:
+        handle = self.channels.get((platform, channel))
+        if handle is None or handle.viewer_count == count:
+            return
+        handle.viewer_count = count
+        await self._broadcast(handle, _viewers_payload(handle))
+
     async def _broadcast(self, handle: ChannelHandle, payload: dict) -> None:
         try:
             text = json.dumps(payload, separators=(",", ":"))
@@ -212,14 +220,26 @@ class Hub:
     def bootstrap_payload(self, viewer: Viewer) -> dict:
         messages: list[dict] = []
         statuses: list[dict] = []
+        viewer_counts: list[dict] = []
         for key in viewer.keys:
             handle = self.channels.get(key)
             if handle is None:
                 continue
             messages.extend(message.to_payload() for message in handle.recent)
             statuses.append(handle.status)
+            if handle.viewer_count is not None:
+                viewer_counts.append(_viewers_payload(handle))
         messages.sort(key=lambda message: message["timestamp"])
-        return {"type": "bootstrap", "messages": messages, "statuses": statuses}
+        return {"type": "bootstrap", "messages": messages, "statuses": statuses, "viewers": viewer_counts}
+
+
+def _viewers_payload(handle: ChannelHandle) -> dict:
+    return {
+        "type": "viewers",
+        "platform": handle.key[0],
+        "channel": handle.key[1],
+        "count": handle.viewer_count,
+    }
 
 
 def _emotes_payload(handle: ChannelHandle) -> dict:

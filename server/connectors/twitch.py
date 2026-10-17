@@ -74,6 +74,23 @@ def parse_line(line: str) -> dict | None:
     }
 
 
+def _paid_notice(tags: dict[str, str]) -> str:
+    """Action line for a paid chat message that isn't a cheer, else ""."""
+    msg_id = tags.get("msg-id", "")
+    if msg_id == "gigantified-emote-message":
+        return "gigantified an emote"
+    if msg_id == "animated-message":
+        effect = tags.get("animation-id", "").replace("-", " ").replace("_", " ").title()
+        return f"sent a {effect} message effect" if effect else "sent a message effect"
+    amount = tags.get("pinned-chat-paid-amount", "")
+    if amount.isdigit():
+        exponent = tags.get("pinned-chat-paid-exponent", "")
+        value = int(amount) / 10 ** (int(exponent) if exponent.isdigit() else 2)
+        currency = tags.get("pinned-chat-paid-currency", "")
+        return f"sent a Hype Chat · {value:,.2f} {currency}".rstrip()
+    return ""
+
+
 def parse_emotes(raw_tag: str, text: str) -> list[dict]:
     """emotes tag: "25:0-4,12-16/1902:6-10" → [{id, begin, end, text}] with an
     exclusive end. Offsets count code points, which Python indexes natively."""
@@ -246,13 +263,15 @@ class TwitchChat:
         emotes = parse_emotes(tags.get("emotes", ""), text)
         source = await self._source_broadcaster(tags)
 
-        # Cheers arrive as ordinary PRIVMSGs with a bits tag; surface them as
-        # system notices so they stand out like subs/gifts do.
-        kind = "chat"
-        bits = tags.get("bits")
-        if bits:
-            kind = "system"
-            text, emotes = _prefix_text(f"{author} cheered {bits} bits", text, emotes)
+        # Bits spending arrives as ordinary PRIVMSGs: cheers carry a bits tag,
+        # Power-ups and Hype Chats a msg-id / pinned-chat-paid-* tags. Surface them
+        # as system notices (the user's own message kept intact) so they stand
+        # out like subs/gifts do. On-screen celebrations only exist in EventSub
+        # (channel.bits.use), which needs the broadcaster's OAuth token.
+        bits_tag = tags.get("bits", "")
+        bits = int(bits_tag) if bits_tag.isdigit() else 0
+        notice = "" if bits else _paid_notice(tags)
+        kind = "system" if bits or notice else "chat"
 
         await self.hub.publish_message(Message(
             platform=self.platform,
@@ -268,7 +287,8 @@ class TwitchChat:
             kind=kind,
             avatar_url=source.get("avatar_url", ""),
             source_name=source.get("name", ""),
-            bits=int(bits) if bits and bits.isdigit() else 0,
+            bits=bits,
+            notice=notice,
         ))
 
     async def _handle_usernotice(self, parsed: dict, channel: str) -> None:

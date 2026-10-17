@@ -255,6 +255,33 @@ h2 {
     background: rgba(115, 240, 168, 0.12);
 }
 
+.connect-button.connected {
+    border-color: rgba(115, 240, 168, 0.5);
+    background: rgba(115, 240, 168, 0.14);
+    font-weight: 600;
+}
+
+.connect-button .connect-off {
+    display: none;
+}
+
+/* Hover hints what a click does; on touch, a tap simply disconnects. */
+@media (hover: hover) {
+    .connect-button.connected:hover {
+        border-color: rgba(255, 123, 123, 0.45);
+        background: rgba(255, 59, 48, 0.12);
+        color: var(--danger);
+    }
+
+    .connect-button.connected:hover .connect-live {
+        display: none;
+    }
+
+    .connect-button.connected:hover .connect-off {
+        display: inline;
+    }
+}
+
 .input-field {
     width: 100%;
     border-radius: 9px;
@@ -938,7 +965,7 @@ h2 {
     }
 }
 
-/* --- Stream player (popout) --- */
+/* --- Stream player (popout + expanded chat) --- */
 
 .player-pane {
     flex-shrink: 0;
@@ -950,12 +977,15 @@ h2 {
     display: none;
 }
 
-.player-frame iframe {
+/* Largest 16:9 box within 55vh, centred — no transparent edges for chat to show through. */
+.player-frame iframe,
+.player-frame video {
     display: block;
-    width: 100%;
+    width: min(100%, calc(55vh * 16 / 9));
+    margin: 0 auto;
     aspect-ratio: 16 / 9;
-    max-height: 55vh;
     border: none;
+    background: #000;
 }
 
 .player-empty {
@@ -965,6 +995,49 @@ h2 {
     font-size: 0.9rem;
 }
 
+.player-casting {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: min(100%, calc(55vh * 16 / 9));
+    aspect-ratio: 16 / 9;
+    margin: 0 auto;
+    padding: 16px;
+    text-align: center;
+    background: radial-gradient(ellipse at 50% 40%, rgba(145, 70, 255, 0.22), transparent 70%), #05080f;
+}
+
+.player-casting svg {
+    width: 42px;
+    height: 42px;
+    margin-bottom: 4px;
+    color: var(--text);
+}
+
+.player-casting strong {
+    font-size: 1.05rem;
+}
+
+.player-casting span {
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.player-casting-stop {
+    margin-top: 8px;
+    padding: 7px 14px;
+    border: 1px solid rgba(255, 123, 123, 0.4);
+    border-radius: 10px;
+    background: rgba(255, 59, 48, 0.12);
+    color: var(--danger);
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+/* Player closed: two small buttons float over the chat's top-right corner. */
 .player-controls {
     position: absolute;
     top: 8px;
@@ -981,6 +1054,62 @@ h2 {
     opacity: 1;
 }
 
+.player-media-controls,
+.player-window-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Player open: the controls become a toolbar above the video, so nothing covers the picture. */
+html.player-open .player-controls {
+    position: static;
+    order: -1;
+    flex-shrink: 0;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 48px;
+    padding: 7px 10px;
+    opacity: 1;
+    border-bottom: 1px solid var(--panel-border);
+    background: linear-gradient(180deg, rgba(20, 30, 52, 0.98), rgba(11, 19, 35, 0.98));
+}
+
+html.player-open .player-media-controls {
+    min-width: 0;
+}
+
+html.player-open .player-toggle,
+html.player-open .player-source {
+    box-shadow: none;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+html.player-open .player-toggle:hover,
+html.player-open .player-source:hover {
+    transform: none;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+html.player-open body .hype-train-bar {
+    padding-right: 14px;
+}
+
+.player-toggle.hidden {
+    display: none;
+}
+
+.player-toggle svg {
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+}
+
+.player-toggle.active {
+    border-color: rgba(115, 240, 168, 0.55);
+    color: var(--ok);
+}
+
 .player-sources {
     display: flex;
     gap: 6px;
@@ -992,8 +1121,9 @@ h2 {
 
 .player-toggle,
 .player-source {
-    width: 32px;
-    height: 32px;
+    flex: none;
+    width: 34px;
+    height: 34px;
     padding: 0;
     border-radius: 10px;
     border: 1px solid var(--panel-border);
@@ -1023,7 +1153,27 @@ h2 {
 }
 
 .player-source {
+    gap: 7px;
     opacity: 0.55;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.player-source-name {
+    display: none;
+}
+
+/* Wide toolbars label the sources, like tabs. */
+@media (min-width: 640px) {
+    html.player-open .player-source {
+        width: auto;
+        padding: 0 12px 0 10px;
+    }
+
+    html.player-open .player-source-name {
+        display: inline;
+    }
 }
 
 .player-source.active {
@@ -1032,10 +1182,17 @@ h2 {
 
 .player-source.active[data-platform="twitch"] {
     border-color: rgba(145, 70, 255, 0.65);
+    background: rgba(145, 70, 255, 0.16);
 }
 
 .player-source.active[data-platform="kick"] {
     border-color: rgba(83, 252, 24, 0.55);
+    background: rgba(83, 252, 24, 0.1);
+}
+
+.player-source.active[data-platform="youtube"] {
+    border-color: rgba(255, 0, 0, 0.55);
+    background: rgba(255, 0, 0, 0.1);
 }
 
 /* --- Alert sounds --- */
@@ -1480,6 +1637,23 @@ html.expand-mode .player-controls {
     will-change: transform;
 }
 
+.expand-exit {
+    border-color: rgba(255, 123, 123, 0.4);
+    color: var(--danger);
+}
+
+.expand-exit:hover {
+    background: rgba(255, 59, 48, 0.25);
+}
+
+/* --- Expand + video buttons (feed header) --- */
+
+.feed-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
 #expand-toggle {
     gap: 7px;
 }
@@ -1489,11 +1663,384 @@ html.expand-mode .player-controls {
     width: auto;
 }
 
-.expand-exit {
-    border-color: rgba(255, 123, 123, 0.4);
+.watch-button svg {
+    height: 15px;
+    width: auto;
+}
+
+/* --- TV layout: video fills the left, chat sits in a column on the right ---
+   Narrow windows (phones, popouts) keep the stacked layout. */
+
+@media (max-width: 759px) {
+    #player-layout {
+        display: none;
+    }
+}
+
+@media (min-width: 760px) {
+    html.tv-mode .app-shell {
+        --tv-chat-width: clamp(320px, 27vw, 560px);
+        --tv-edge: clamp(12px, 1.4vw, 26px);
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) var(--tv-chat-width);
+        grid-template-rows: auto auto minmax(0, 1fr);
+        background:
+            radial-gradient(ellipse at 35% 45%, rgba(145, 70, 255, 0.14), transparent 62%),
+            radial-gradient(ellipse at 10% 100%, rgba(83, 252, 24, 0.05), transparent 50%),
+            #03060c;
+    }
+
+    html.tv-mode .player-controls {
+        grid-column: 1 / -1;
+        grid-row: 1;
+    }
+
+    html.tv-mode .alerts-unlock {
+        grid-column: 1 / -1;
+        grid-row: 2;
+    }
+
+    html.tv-mode .player-pane {
+        grid-column: 1;
+        grid-row: 3;
+        min-width: 0;
+        min-height: 0;
+        padding: var(--tv-edge);
+        background: transparent;
+        border-bottom: none;
+        container-type: size;
+    }
+
+    html.tv-mode .player-frame {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    html.tv-mode .player-frame iframe,
+    html.tv-mode .player-frame video,
+    html.tv-mode .player-casting {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        aspect-ratio: auto;
+        border-radius: 12px;
+        box-shadow: 0 30px 90px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    }
+
+    /* Largest 16:9 box that fits, so the frame hugs the picture. */
+    @supports (width: 1cqh) {
+        html.tv-mode .player-frame iframe,
+        html.tv-mode .player-frame video,
+        html.tv-mode .player-casting {
+            width: min(100cqw, 100cqh * 16 / 9);
+            height: auto;
+            aspect-ratio: 16 / 9;
+        }
+    }
+
+    html.tv-mode .player-empty {
+        max-width: 420px;
+        font-size: 1.05rem;
+        line-height: 1.5;
+    }
+
+    html.tv-mode .feed-panel {
+        grid-column: 2;
+        grid-row: 3;
+        min-width: 0;
+        border: none;
+        border-left: 1px solid var(--panel-border);
+        border-radius: 0;
+        background: linear-gradient(180deg, rgba(13, 21, 39, 0.97), rgba(6, 10, 19, 0.98));
+        box-shadow: -24px 0 60px rgba(0, 0, 0, 0.35);
+    }
+
+    /* TV-readable chat: text grows with the screen, never below the chosen size. */
+    html.tv-mode .feed {
+        gap: 6px;
+        padding: 12px 10px 10px;
+    }
+
+    html.tv-mode .message-card {
+        --tv-font: max(var(--chat-font, 1rem), 1.05vw);
+        font-size: var(--tv-font);
+        line-height: 1.35;
+        padding: 7px 12px;
+    }
+
+    html.tv-mode .message-text {
+        font-size: calc(var(--tv-font) * 0.93);
+    }
+
+    html.tv-mode .message-card:not(.system-notice) {
+        border-left: 3px solid var(--platform-accent, rgba(255, 255, 255, 0.08));
+    }
+
+    html.tv-mode .message-card[data-platform="twitch"] { --platform-accent: rgba(145, 70, 255, 0.75); }
+    html.tv-mode .message-card[data-platform="youtube"] { --platform-accent: rgba(255, 0, 0, 0.7); }
+    html.tv-mode .message-card[data-platform="kick"] { --platform-accent: rgba(83, 252, 24, 0.65); }
+    html.tv-mode .message-card[data-platform="tiktok"] { --platform-accent: rgba(37, 244, 238, 0.65); }
+}
+
+/* --- Combined viewer badge --- */
+
+.feed-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.viewer-badge {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 4px;
+    border: none;
+    border-radius: 6px;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.viewer-badge:hover {
+    color: var(--text);
+}
+
+.viewer-badge.hidden {
+    display: none;
+}
+
+.viewer-badge > svg {
+    width: 15px;
+    height: 15px;
+}
+
+/* Tap the count for the per-platform split. */
+.viewer-breakdown {
+    display: none;
+    align-items: center;
+    gap: 9px;
+    margin-left: 4px;
+}
+
+.viewer-badge.open .viewer-breakdown {
+    display: inline-flex;
+}
+
+.viewer-breakdown span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.viewer-breakdown svg,
+.viewer-breakdown img {
+    height: 12px;
+    width: auto;
+}
+
+/* A crowded toolbar scrolls sideways instead of pushing the buttons off-screen. */
+html.player-open .player-media-controls {
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+/* --- Paid notices: cheers, Power-ups, Hype Chats --- */
+
+.bits-gem {
+    width: 1.05em;
+    height: 1.05em;
+    margin-right: 4px;
+    vertical-align: -0.18em;
+}
+
+.paid-head {
+    font-weight: 600;
+}
+
+.paid-head .badge {
+    vertical-align: -0.15em;
+}
+
+.cheer-total {
+    font-weight: 800;
+}
+
+/* --- Player toolbar: flat icon buttons; compact on phones --- */
+
+html.player-open .player-controls {
+    gap: 6px;
+    min-height: 44px;
+    padding: 5px 8px;
+}
+
+html.player-open .player-media-controls,
+html.player-open .player-window-controls {
+    gap: 2px;
+}
+
+html.player-open .player-toggle,
+html.player-open .player-source {
+    border-color: transparent;
+    background: none;
+    color: var(--muted);
+}
+
+html.player-open .player-toggle:hover,
+html.player-open .player-source:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text);
+}
+
+html.player-open .player-source.active {
+    color: var(--text);
+    border-color: transparent;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* Muted is the default, so the way out of it is a labelled pill, not a bare icon. */
+html.player-open .player-sound.muted {
+    width: auto;
+    gap: 6px;
+    padding: 0 12px 0 9px;
+    border-color: transparent;
+    background: rgba(255, 209, 102, 0.12);
+    color: var(--warn);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+html.player-open .player-sound.muted:hover {
+    background: rgba(255, 209, 102, 0.2);
+}
+
+html.player-open .expand-exit {
     color: var(--danger);
 }
 
-.expand-exit:hover {
-    background: rgba(255, 59, 48, 0.25);
+@media (max-width: 639px) {
+    html.player-open .player-controls {
+        min-height: 38px;
+        padding: 3px 4px;
+    }
+
+    html.player-open .player-toggle,
+    html.player-open .player-source {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+    }
+
+    html.player-open .player-toggle svg {
+        width: 15px;
+        height: 15px;
+    }
+
+    html.player-open .player-source svg,
+    html.player-open .player-source img {
+        height: 14px;
+    }
+
+    /* Icon-only Unmute on phones; the yellow tint still marks it. */
+    html.player-open .player-sound.muted {
+        width: 30px;
+        padding: 0;
+    }
+
+    html.player-open .player-sound.muted span {
+        display: none;
+    }
+
+    html.player-open .viewer-badge {
+        font-size: 0.78rem;
+        padding: 2px;
+    }
+}
+
+/* --- Floating player (phones): the video keeps playing after swiping out of the full window --- */
+
+.player-mini-bar {
+    display: none;
+}
+
+html.player-mini .player-pane {
+    position: fixed;
+    z-index: 120;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    width: min(58vw, 340px);
+    overflow: hidden;
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+}
+
+html.player-mini .player-frame iframe,
+html.player-mini .player-frame video,
+html.player-mini .player-casting {
+    width: 100%;
+    margin: 0;
+}
+
+html.player-mini .player-mini-bar {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 2;
+    display: flex;
+    gap: 6px;
+}
+
+.player-mini-bar button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.player-mini-bar svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Swipe layer over the top of an embedded video (touch devices, full window only). */
+.player-pane {
+    position: relative;
+}
+
+.player-swipe-zone {
+    display: none;
+}
+
+html.touch-swipe.expand-mode.player-open .player-swipe-zone {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1;
+    display: block;
+    height: 60%;
+}
+
+html.touch-swipe .player-swipe-zone.pass,
+.player-pane:has(video.native-player) .player-swipe-zone {
+    display: none !important;
 }

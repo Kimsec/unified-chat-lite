@@ -21,6 +21,9 @@ class Message:
     avatar_url: str = ""
     source_name: str = ""
     bits: int = 0
+    # Paid-action line the client renders ahead of the user's own message, e.g.
+    # "gigantified an emote". Cheers use bits instead; the client words those.
+    notice: str = ""
     # Internal only: lowercase login for CLEARCHAT (ban/timeout) matching on
     # Twitch, where display names can differ from logins.
     author_login: str = ""

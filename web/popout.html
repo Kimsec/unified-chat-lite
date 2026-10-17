@@ -62,8 +62,17 @@
             </div>
         </section>
         <div class="player-controls">
-            <div id="player-sources" class="player-sources hidden"></div>
-            <button id="player-toggle" class="player-toggle" type="button" title="Show stream player">&#9654;</button>
+            <div class="player-media-controls">
+                <div id="player-sources" class="player-sources hidden"></div>
+                <button class="viewer-badge hidden" type="button"></button>
+            </div>
+            <div class="player-window-controls">
+                <button id="player-sound" class="player-toggle player-sound hidden" type="button"></button>
+                <button id="player-cast" class="player-toggle hidden" type="button"></button>
+                <button id="player-layout" class="player-toggle hidden" type="button"></button>
+                <button id="player-fullscreen" class="player-toggle hidden" type="button"></button>
+                <button id="player-toggle" class="player-toggle" type="button" title="Show stream player">&#9654;</button>
+            </div>
         </div>
         <div id="alert-frames" class="alert-frames" aria-hidden="true"></div>
     </div>
