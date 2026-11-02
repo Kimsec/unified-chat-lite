@@ -16,6 +16,7 @@ import logging
 import random
 import re
 import time
+import uuid
 from datetime import datetime
 
 import websockets
@@ -25,10 +26,10 @@ from ..models import Message
 
 logger = logging.getLogger(__name__)
 
-PUSHER_URL = (
-    "wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679"
-    "?protocol=7&client=js&version=8.4.0-rc2&flash=false"
-)
+PUSHER_URL = "wss://ws-{cluster}.pusher.com/app/{key}?protocol=7&client=js&version=8.4.0&flash=false"
+# Kick hands out its Pusher app key via this endpoint and rotates it.
+REALTIME_API = "https://web.kick.com/api/v1/realtime/connection"
+FALLBACK_PUSHER = ("34bf7a0ff419a2a775b9", "us2")
 CHANNEL_API = "https://kick.com/api/v2/channels/{slug}"
 
 CHAT_EVENT = "App\\Events\\ChatMessageEvent"
@@ -141,6 +142,28 @@ class KickChat:
             return None
         return chatroom_id, data.get("id")
 
+    async def _pusher_url(self) -> str:
+        key, cluster = FALLBACK_PUSHER
+        try:
+            async with AsyncSession(impersonate="chrome") as session:
+                response = await session.post(
+                    REALTIME_API,
+                    json={
+                        "client": {"id": str(uuid.uuid4()), "type": "web"},
+                        "capabilities": {"accepted_providers": [{"provider": "pusher"}]},
+                    },
+                    headers={"Referer": "https://kick.com", "x-app-platform": "web"},
+                    timeout=15,
+                )
+                for conn in (response.json().get("data") or {}).get("connections") or []:
+                    creds = conn.get("credentials") or {}
+                    if conn.get("provider") == "pusher" and creds.get("app_key") and creds.get("cluster"):
+                        key, cluster = creds["app_key"], creds["cluster"]
+                        break
+        except Exception as exc:
+            logger.warning("kick realtime config lookup failed: %s", exc)
+        return PUSHER_URL.format(key=key, cluster=cluster)
+
     async def _send(self, payload: dict) -> None:
         try:
             await self._ws.send(json.dumps(payload))
@@ -158,7 +181,7 @@ class KickChat:
     async def _run(self) -> None:
         while self.rooms:
             try:
-                async with websockets.connect(PUSHER_URL) as ws:
+                async with websockets.connect(await self._pusher_url()) as ws:
                     self._ws = ws
                     for slug in list(self.rooms):
                         await self._subscribe(slug)
