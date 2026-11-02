@@ -294,7 +294,9 @@ function renderMessageText(text, emotes, platform, bits = 0) {
     if (emote.begin > cursor) {
       result += renderPlainText(chars.slice(cursor, emote.begin).join(""), platform, bits);
     }
-    result += emoteImg(emoteUrl(emote.id), emote.text);
+    result += emote.gif
+      ? `<img class="chat-gif" src="${escapeHtml(emote.id)}" alt="${escapeHtml(emote.text)}" title="${escapeHtml(emote.text)}" loading="lazy">`
+      : emoteImg(emoteUrl(emote.id), emote.text);
     cursor = emote.end;
   }
   if (cursor < chars.length) {

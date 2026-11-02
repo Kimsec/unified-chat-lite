@@ -94,6 +94,20 @@ def parse_emotes(raw_tag: str, text: str) -> list[dict]:
     return emotes
 
 
+GIF_RE = re.compile(r"(\d+)-(\d+)\|([A-Za-z0-9]+)\|")
+
+
+def parse_gifs(raw_tag: str, text: str) -> list[dict]:
+    """gifs tag: "0-36|<giphy id>|<url>" over the "[alt text]" span. The URL is
+    rebuilt from the id as the much smaller 200h WebP rendition."""
+    gifs = []
+    for match in GIF_RE.finditer(raw_tag or ""):
+        begin, end = int(match.group(1)), int(match.group(2)) + 1
+        url = f"https://media.giphy.com/media/{match.group(3)}/200h.webp"
+        gifs.append({"id": url, "begin": begin, "end": end, "text": text[begin:end], "gif": True})
+    return gifs
+
+
 class TwitchChat:
     platform = "twitch"
 
@@ -243,7 +257,7 @@ class TwitchChat:
         login = (parsed["prefix"] or "").split("!")[0] or "unknown"
         author = tags.get("display-name") or login
         text = parsed["trailing"] or ""
-        emotes = parse_emotes(tags.get("emotes", ""), text)
+        emotes = parse_emotes(tags.get("emotes", ""), text) + parse_gifs(tags.get("gifs", ""), text)
         source = await self._source_broadcaster(tags)
 
         # Cheers arrive as ordinary PRIVMSGs with a bits tag; surface them as
