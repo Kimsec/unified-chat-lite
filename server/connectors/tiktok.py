@@ -20,6 +20,7 @@ from TikTokLive.events import (
     ConnectEvent,
     GiftEvent,
     LiveEndEvent,
+    RoomUserSeqEvent,
 )
 
 try:
@@ -162,6 +163,10 @@ class TikTokChat:
                 name, author, user, f"{author} subscribed!",
                 kind="system", message_id=_msg_id(event),
             )
+
+        @client.on(RoomUserSeqEvent)
+        async def _on_viewers(event: RoomUserSeqEvent) -> None:
+            await self.hub.publish_viewers(self.platform, name, event.total or None)
 
         @client.on(LiveEndEvent)
         async def _on_live_end(event: LiveEndEvent) -> None:
