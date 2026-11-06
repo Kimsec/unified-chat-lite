@@ -195,10 +195,18 @@ class Hub:
             "dot": dot,
             "state": state,
             "detail": detail,
+            "viewers": handle.status.get("viewers") if state == "connected" else None,
         }
         # Only on connected statuses, so a stale id never survives a stream ending.
         if video_id:
             handle.status["video_id"] = video_id
+        await self._broadcast(handle, {"type": "status", "status": handle.status})
+
+    async def publish_viewers(self, platform: str, channel: str, count: int | None) -> None:
+        handle = self.channels.get((platform, channel))
+        if handle is None or handle.status.get("viewers") == count:
+            return
+        handle.status = {**handle.status, "viewers": count}
         await self._broadcast(handle, {"type": "status", "status": handle.status})
 
     async def _broadcast(self, handle: ChannelHandle, payload: dict) -> None:
