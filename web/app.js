@@ -257,34 +257,70 @@ const CHEER_TIERS = [
   [1, "#979797"],
 ];
 
-function cheermoteMarkup(word) {
-  const match = /^(.+?)(\d+)$/.exec(word);
-  if (!match) return null;
-  const prefix = match[1].toLowerCase();
-  if (!CHEERMOTE_PREFIXES.has(prefix)) return null;
-  const amount = Number(match[2]);
-  const [tier, color] = CHEER_TIERS.find(([min]) => amount >= min) || CHEER_TIERS[CHEER_TIERS.length - 1];
-  const src = `https://d3aqoihi2n8ty8.cloudfront.net/actions/${prefix}/dark/animated/${tier}/1.gif`;
-  return `<img class="emote" src="${src}" alt="${escapeHtml(word)}" title="${escapeHtml(word)}"><span class="cheer-amount" style="color:${color}">${amount}</span>`;
+const CHEER_WORD_RE = /^([a-z][a-z0-9_]*?)(\d+)$/i;
+const POWER_UP_SVG = `<svg class="bits-gem" viewBox="0 0 24 24" aria-hidden="true" style="color:#ffd166"><path fill="currentColor" d="M13.5 2 4 13.5h6.5L9.5 22 20 9.5h-6.5z"/></svg>`;
+
+function bitsGemSvg(color) {
+  return `<svg class="bits-gem" viewBox="0 0 24 24" aria-hidden="true" style="color:${color}"><path fill="currentColor" d="M12 2 3.5 9.5 12 22l8.5-12.5z"/><path fill="#fff" opacity=".35" d="M12 2 7.5 9.5h9z"/></svg>`;
 }
 
-function renderPlainText(text, platform, bits) {
+function cheerTier(amount) {
+  return CHEER_TIERS.find(([min]) => amount >= min) || CHEER_TIERS[CHEER_TIERS.length - 1];
+}
+
+// Channel cheermotes (e.g. "xqcCheer100") only count when all cheer-shaped
+// words add up to exactly the bits sent, so "Team10" stays text.
+function findCheerWords(text, bits) {
+  const known = new Set();
+  const all = new Set();
+  let total = 0;
+  for (const word of text.split(/\s+/)) {
+    const match = CHEER_WORD_RE.exec(word);
+    if (!match) continue;
+    all.add(word);
+    total += Number(match[2]);
+    if (CHEERMOTE_PREFIXES.has(match[1].toLowerCase())) known.add(word);
+  }
+  return total === bits ? all : known;
+}
+
+function cheermoteMarkup(word) {
+  const [, rawPrefix, digits] = CHEER_WORD_RE.exec(word);
+  const prefix = rawPrefix.toLowerCase();
+  const amount = Number(digits);
+  const [tier, color] = cheerTier(amount);
+  const image = CHEERMOTE_PREFIXES.has(prefix)
+    ? `<img class="emote" src="https://d3aqoihi2n8ty8.cloudfront.net/actions/${prefix}/dark/animated/${tier}/1.gif" alt="${escapeHtml(word)}" title="${escapeHtml(word)}">`
+    : `<span title="${escapeHtml(word)}">${bitsGemSvg(color)}</span>`;
+  return `${image}<span class="cheer-amount" style="color:${color}">${amount}</span>`;
+}
+
+function paidNoticeMarkup(message) {
+  const color = ensureReadableColor(message.color);
+  const author = `<span class="author-name"${color ? ` style="color:${color}"` : ""}>${escapeHtml(message.author)}</span>`;
+  const colon = message.text ? ":" : "";
+  if (message.bits > 0) {
+    const [, tierColor] = cheerTier(message.bits);
+    const amount = `${message.bits.toLocaleString()} ${message.bits === 1 ? "bit" : "bits"}`;
+    return `<span class="paid-head">${bitsGemSvg(tierColor)}${badgesMarkup(message)}${author} cheered <strong class="cheer-total" style="color:${tierColor}">${amount}</strong>${colon}</span>`;
+  }
+  return `<span class="paid-head">${POWER_UP_SVG}${badgesMarkup(message)}${author} ${escapeHtml(message.notice)}${colon}</span>`;
+}
+
+function renderPlainText(text, platform, cheers) {
   if (platform !== "twitch" && platform !== "kick") return linkifyText(text);
   const emoteMap = showThirdPartyEmotes ? thirdPartyEmotes.get(platform) : undefined;
-  if (!emoteMap?.size && !bits) return linkifyText(text);
+  if (!emoteMap?.size && !cheers?.size) return linkifyText(text);
   return text.split(" ").map((word) => {
-    if (bits) {
-      const cheer = cheermoteMarkup(word);
-      if (cheer) return cheer;
-    }
+    if (cheers?.has(word)) return cheermoteMarkup(word);
     const url = emoteMap?.get(word);
     return url ? emoteImg(url, word) : linkifyText(word);
   }).join(" ");
 }
 
-
 function renderMessageText(text, emotes, platform, bits = 0) {
-  if (!emotes || !emotes.length) return renderPlainText(text, platform, bits);
+  const cheers = bits > 0 ? findCheerWords(text, bits) : null;
+  if (!emotes || !emotes.length) return renderPlainText(text, platform, cheers);
   const emoteUrl = EMOTE_IMAGE_URLS[platform] || EMOTE_IMAGE_URLS.twitch;
   const chars = Array.from(text);
   const sorted = [...emotes].sort((a, b) => a.begin - b.begin);
@@ -292,7 +328,7 @@ function renderMessageText(text, emotes, platform, bits = 0) {
   let cursor = 0;
   for (const emote of sorted) {
     if (emote.begin > cursor) {
-      result += renderPlainText(chars.slice(cursor, emote.begin).join(""), platform, bits);
+      result += renderPlainText(chars.slice(cursor, emote.begin).join(""), platform, cheers);
     }
     result += emote.gif
       ? `<img class="chat-gif" src="${escapeHtml(emote.id)}" alt="${escapeHtml(emote.text)}" title="${escapeHtml(emote.text)}" loading="lazy">`
@@ -300,7 +336,7 @@ function renderMessageText(text, emotes, platform, bits = 0) {
     cursor = emote.end;
   }
   if (cursor < chars.length) {
-    result += renderPlainText(chars.slice(cursor).join(""), platform, bits);
+    result += renderPlainText(chars.slice(cursor).join(""), platform, cheers);
   }
   return result;
 }
@@ -430,8 +466,9 @@ if (syncChannel) {
 function addMessage(message) {
   const wasNearBottom = isNearBottom();
   state.messages.push(message);
-  if (state.messages.length > MAX_VISIBLE_MESSAGES) {
-    state.messages = state.messages.slice(-MAX_VISIBLE_MESSAGES);
+  const limit = wasNearBottom ? MAX_VISIBLE_MESSAGES : MAX_VISIBLE_MESSAGES * 5;
+  if (state.messages.length > limit) {
+    state.messages = state.messages.slice(-limit);
   }
   renderMessages();
   if (!wasNearBottom) {
@@ -475,9 +512,13 @@ function renderMessages() {
       messageClass += " mention";
     }
     if (message.kind === "system") {
+      const paid = message.bits > 0 || Boolean(message.notice);
+      const body = message.text
+        ? `<span class="message-text${paid ? "" : " system-notice-text"}">${renderMessageText(message.text, message.emotes, message.platform, message.bits)}</span>`
+        : "";
       return `
         <article class="${messageClass} system-notice" data-platform="${message.platform}"${overlayFadeStyle(message)}>
-          <span class="message-topline"><span class="message-time">${formatTime(message.timestamp)}</span> ${showPlatform ? platformMarkup(message.platform) : ""}${sourceAvatarMarkup(message)}<span class="message-text system-notice-text">${renderMessageText(message.text, message.emotes, message.platform, message.bits)}</span></span>
+          <span class="message-topline"><span class="message-time">${formatTime(message.timestamp)}</span> ${showPlatform ? platformMarkup(message.platform) : ""}${sourceAvatarMarkup(message)}${paid ? `${paidNoticeMarkup(message)} ` : ""}${body}</span>
         </article>
       `;
     }
@@ -562,13 +603,34 @@ function renderHypeTrain(data) {
   document.getElementById("ht-fill").style.width = `${pct}%`;
 }
 
-function setStatus(platform, dot, stateText, detail, videoId) {
-  state.statuses.set(platform, { platform, dot, state: stateText, detail, video_id: videoId });
+function setStatus(status) {
+  state.statuses.set(status.platform, status);
   renderStatuses();
-  if (platform === "youtube") renderPlayer(); 
+  if (status.platform === "youtube") renderPlayer();
+}
+
+const VIEWER_SVG = `<svg viewBox="0 0 448 512" aria-hidden="true"><path fill="currentColor" d="M224 256a128 128 0 1 0 0-256 128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3 0 498.7 13.3 512 29.7 512h388.6c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304h-91.4z"/></svg>`;
+const compactNumber = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
+
+function viewerCountMarkup(count) {
+  return `${VIEWER_SVG}${count < 10000 ? count.toLocaleString() : compactNumber.format(count)}`;
+}
+
+function renderViewerBadges() {
+  const live = ["twitch", "youtube", "kick", "tiktok"]
+    .map((platform) => state.statuses.get(platform))
+    .filter((status) => typeof status?.viewers === "number");
+  const total = live.reduce((sum, status) => sum + status.viewers, 0);
+  const split = live.map((status) => `${PLATFORM_NAMES[status.platform]} ${status.viewers.toLocaleString()}`).join(" · ");
+  for (const badge of document.querySelectorAll(".viewer-badge")) {
+    badge.classList.toggle("hidden", !live.length);
+    badge.innerHTML = live.length ? viewerCountMarkup(total) : "";
+    badge.title = `Watching now: ${split}`;
+  }
 }
 
 function renderStatuses() {
+  renderViewerBadges();
   if (!statusGridEl) return;
   const statuses = ["twitch", "youtube", "kick", "tiktok"].map((platform) =>
     state.statuses.get(platform) || { platform, dot: "idle", state: "idle", detail: "Not connected" }
@@ -576,7 +638,8 @@ function renderStatuses() {
   statusGridEl.innerHTML = statuses.map((status) => `
     <article class="status-card">
       ${platformMarkup(status.platform)}
-      <span class="status-detail" title="${escapeHtml(status.detail || "")}">${escapeHtml(status.detail || status.state || "")}</span>
+      <span class="status-detail" title="${escapeHtml(status.detail || "")}">${escapeHtml(status.state === "connected" && status.channel ? status.channel.replace(/^@/, "") : status.detail || status.state || "")}</span>
+      ${typeof status.viewers === "number" ? `<span class="status-viewers">${viewerCountMarkup(status.viewers)}</span>` : ""}
       <span class="status-dot ${status.dot}" aria-hidden="true"></span>
     </article>
   `).join("");
@@ -630,7 +693,7 @@ class HubConnection {
       this.socket = null;
       for (const [platform, channel] of Object.entries(this.desired || {})) {
         if (channel) {
-          setStatus(platform, "error", "disconnected", `Hub connection lost, retrying in ${Math.round(this.reconnectDelay / 1000)}s…`);
+          setStatus({ platform, dot: "error", state: "disconnected", detail: `Hub connection lost, retrying in ${Math.round(this.reconnectDelay / 1000)}s…` });
         }
       }
       this.reconnectTimer = setTimeout(() => this.open(), this.reconnectDelay);
@@ -655,7 +718,7 @@ class HubConnection {
         state.messages = merged.slice(-MAX_VISIBLE_MESSAGES);
         state.statuses.clear();
         for (const status of payload.statuses) {
-          setStatus(status.platform, status.dot, status.state, status.detail, status.video_id);
+          setStatus(status);
         }
         renderStatuses(); // even when statuses is empty (everything disconnected)
         renderMessages();
@@ -668,7 +731,7 @@ class HubConnection {
         markDeleted((m) => payload.ids.includes(m.id));
         break;
       case "status":
-        setStatus(payload.status.platform, payload.status.dot, payload.status.state, payload.status.detail, payload.status.video_id);
+        setStatus(payload.status);
         break;
       case "emotes":
         thirdPartyEmotes.set(payload.platform || "twitch", new Map(Object.entries(payload.emotes || {})));
