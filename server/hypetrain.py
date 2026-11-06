@@ -1,4 +1,4 @@
-"""Hype train status via anonymous Twitch GQL polling (EventSub needs OAuth)."""
+"""Hype train status and viewer count via anonymous Twitch GQL polling (EventSub needs OAuth)."""
 from __future__ import annotations
 
 import asyncio
@@ -18,6 +18,7 @@ HIDE_AFTER_MS = 5000
 QUERY = """
 query($login: String) {
   user(login: $login) {
+    stream { viewersCount }
     channel {
       hypeTrain {
         execution {
@@ -52,7 +53,8 @@ class HypeTrainPoller:
         delay = IDLE_POLL_SECONDS
         while True:
             try:
-                train = await self._fetch(channel)
+                train, viewers = await self._fetch(channel)
+                await self.hub.publish_viewers("twitch", channel, viewers)
                 if train is not None:
                     delay = ACTIVE_POLL_SECONDS
                     if train != last_sent:
@@ -72,7 +74,7 @@ class HypeTrainPoller:
                 delay = min(max(delay, IDLE_POLL_SECONDS) * 2, MAX_BACKOFF_SECONDS)
             await asyncio.sleep(delay)
 
-    async def _fetch(self, channel: str) -> dict | None:
+    async def _fetch(self, channel: str) -> tuple[dict | None, int | None]:
         async with AsyncSession(impersonate="chrome") as session:
             response = await session.post(
                 GQL_URL,
@@ -81,15 +83,17 @@ class HypeTrainPoller:
                 timeout=15,
             )
             data = response.json()
-        channel_data = ((data.get("data") or {}).get("user") or {}).get("channel")
+        user = (data.get("data") or {}).get("user") or {}
+        channel_data = user.get("channel")
         if not isinstance(channel_data, dict) or "hypeTrain" not in channel_data:
             raise RuntimeError("unexpected GQL response shape")
+        viewers = (user.get("stream") or {}).get("viewersCount")
         execution = (channel_data.get("hypeTrain") or {}).get("execution")
         if not execution or not execution.get("isActive"):
-            return None
+            return None, viewers
         progress = execution.get("progress") or {}
         return {
             "level": int((progress.get("level") or {}).get("value") or 1),
             "progress": int(progress.get("progression") or 0),
             "goal": int(progress.get("goal") or 0),
-        }
+        }, viewers
