@@ -41,6 +41,7 @@ CANONICAL_WATCH_RE = re.compile(
 )
 # Fallback when canonical renders as href="undefined" (newer markup).
 CURRENT_VIDEO_RE = re.compile(r'"currentVideoEndpoint":\{[^}]*?"url":"/watch\?v=([\w-]{11})"')
+LIVE_VIEWERS_RE = re.compile(r'"originalViewCount":"(\d+)"')
 API_KEY_RE = re.compile(r'"INNERTUBE_API_KEY":"([^"]+)"')
 CLIENT_VERSION_RE = re.compile(r'"INNERTUBE_CONTEXT_CLIENT_VERSION":"([^"]+)"')
 CONTINUATION_RE = re.compile(r'"continuation":"([^"]+)"')
@@ -230,10 +231,11 @@ class YouTubeChat:
                 continue
             html = response.text
             match = CANONICAL_WATCH_RE.search(html)
+            if not match and '"isLive":true' in html:
+                match = CURRENT_VIDEO_RE.search(html)
             if match:
-                return match.group(1)
-            match = CURRENT_VIDEO_RE.search(html)
-            if match and '"isLive":true' in html:
+                viewers = LIVE_VIEWERS_RE.search(html)
+                await self.hub.publish_viewers(self.platform, name, int(viewers.group(1)) if viewers else None)
                 return match.group(1)
         return None
 
