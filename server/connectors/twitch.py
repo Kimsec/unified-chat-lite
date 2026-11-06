@@ -94,6 +94,21 @@ def parse_emotes(raw_tag: str, text: str) -> list[dict]:
     return emotes
 
 
+def _paid_notice(tags: dict[str, str]) -> str:
+    msg_id = tags.get("msg-id", "")
+    if msg_id == "gigantified-emote-message":
+        return "gigantified an emote"
+    if msg_id == "animated-message":
+        effect = tags.get("animation-id", "").replace("-", " ").replace("_", " ").title()
+        return f"sent a {effect} message effect" if effect else "sent a message effect"
+    amount = tags.get("pinned-chat-paid-amount", "")
+    if amount.isdigit():
+        exponent = tags.get("pinned-chat-paid-exponent", "")
+        decimals = int(exponent) if exponent.isdigit() else 2
+        currency = tags.get("pinned-chat-paid-currency", "")
+        return f"sent a Hype Chat · {int(amount) / 10 ** decimals:,.{decimals}f} {currency}".rstrip()
+    return ""
+
 GIF_RE = re.compile(r"(\d+)-(\d+)\|([A-Za-z0-9]+)\|")
 
 
@@ -260,13 +275,9 @@ class TwitchChat:
         emotes = parse_emotes(tags.get("emotes", ""), text) + parse_gifs(tags.get("gifs", ""), text)
         source = await self._source_broadcaster(tags)
 
-        # Cheers arrive as ordinary PRIVMSGs with a bits tag; surface them as
-        # system notices so they stand out like subs/gifts do.
-        kind = "chat"
-        bits = tags.get("bits")
-        if bits:
-            kind = "system"
-            text, emotes = _prefix_text(f"{author} cheered {bits} bits", text, emotes)
+        bits_tag = tags.get("bits", "")
+        bits = int(bits_tag) if bits_tag.isdigit() else 0
+        notice = "" if bits else _paid_notice(tags)
 
         await self.hub.publish_message(Message(
             platform=self.platform,
@@ -279,10 +290,11 @@ class TwitchChat:
             emotes=emotes,
             timestamp=int(tags.get("tmi-sent-ts") or time.time() * 1000),
             author_login=login.lower(),
-            kind=kind,
+            kind="system" if bits or notice else "chat",
             avatar_url=source.get("avatar_url", ""),
             source_name=source.get("name", ""),
-            bits=int(bits) if bits and bits.isdigit() else 0,
+            bits=bits,
+            notice=notice,
         ))
 
     async def _handle_usernotice(self, parsed: dict, channel: str) -> None:
