@@ -21,6 +21,7 @@ class Message:
     avatar_url: str = ""
     source_name: str = ""
     bits: int = 0
+    notice: str = ""
     # Internal only: lowercase login for CLEARCHAT (ban/timeout) matching on
     # Twitch, where display names can differ from logins.
     author_login: str = ""
