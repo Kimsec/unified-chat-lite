@@ -35,13 +35,16 @@ shareable as links: `https://unified-chat.com/?twitch=channelname&kick=channelna
 - **Unified feed** — up to four chats in one view, with per-platform filters,
   timestamps and clickable links/emotes. Messages that @-mention a connected
   channel are highlighted.
-- **7TV / BTTV / FFZ emotes** — third-party Twitch emotes render automatically,
-  no browser extension needed.
+- **7TV / BTTV / FFZ emotes** — third-party emotes render automatically in
+  Twitch chats (7TV in Kick chats too), no browser extension needed.
+- **Twitch chat GIFs** — GIFs sent in Twitch chat show as images.
 - **Twitch badges** — broadcaster, mod, VIP, sub and more, using Twitch's own
   badge art.
 - **Expand** — one click fills the window with the chat; ✕ or Esc brings the
   page back. The state lives in the URL (`?expand=1`), so a bookmark or shared
   link opens straight into it.
+- **Combined viewers** — a badge sums the live viewers of every connected
+  stream; hover for the per-platform split, also shown under Connector Status.
 - **Stream player** — press ▶ in the expanded chat to watch Twitch, Kick or
   YouTube (once live) above the chat. Starts muted; platform icons switch source.
 - **Alert sounds** — paste your StreamElements/Streamlabs alert overlay URLs
@@ -49,8 +52,9 @@ shareable as links: `https://unified-chat.com/?twitch=channelname&kick=channelna
   only in your browser, never on the server.
 - **OBS overlay** — use `/overlay?twitch=channelname` as a transparent
   browser source with auto-fading messages (see parameters below).
-- **Event notices** — subs, resubs, gift subs, raids and cheers with animated
-  cheermotes (Twitch), subs/gift subs/hosts/Kicks gifts (Kick), Super
+- **Event notices** — subs, resubs, gift subs, raids, cheers with animated
+  cheermotes, bits Power-ups and Hype Chats (Twitch), subs/gift subs/hosts/Kicks
+  gifts (Kick), Super
   Chats/Stickers and memberships (YouTube) render with a highlight border.
 - **Hype Train** — a live progress bar (level + %) appears when a Twitch hype
   train is rolling, and fades out when it ends.
@@ -69,7 +73,7 @@ All toggles live in the sidebar and are stored locally in the browser:
 |---|---|---|
 | Platform | on | platform icon in front of each message |
 | User badges | on | Twitch badges (mod, sub, VIP...) |
-| 7TV/BTTV/FFZ emotes | on | third-party emotes in Twitch chats |
+| 7TV/BTTV/FFZ emotes | on | third-party emotes in Twitch and Kick chats |
 | Highlight mentions | on | highlight messages @-mentioning a connected channel |
 | 24-hour clock | on | 24h vs 12h timestamps |
 | Text size | 16 px | chat text size |
