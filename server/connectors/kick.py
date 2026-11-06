@@ -31,6 +31,7 @@ PUSHER_URL = "wss://ws-{cluster}.pusher.com/app/{key}?protocol=7&client=js&versi
 REALTIME_API = "https://web.kick.com/api/v1/realtime/connection"
 FALLBACK_PUSHER = ("34bf7a0ff419a2a775b9", "us2")
 CHANNEL_API = "https://kick.com/api/v2/channels/{slug}"
+VIEWER_POLL_SECONDS = 60
 
 CHAT_EVENT = "App\\Events\\ChatMessageEvent"
 DELETED_EVENT = "App\\Events\\MessageDeletedEvent"
@@ -81,6 +82,7 @@ class KickChat:
         self.slugs: dict[int, str] = {}  # chatroom id -> slug
         self.channel_ids: dict[str, int] = {}  # slug -> channel id
         self.channel_slugs: dict[int, str] = {}  # channel id -> slug
+        self.viewer_tasks: dict[str, asyncio.Task] = {}
         self._ws = None
         self._task: asyncio.Task | None = None
         self._backoff = 1.0
@@ -109,6 +111,7 @@ class KickChat:
         if channel_id:
             self.channel_ids[slug] = channel_id
             self.channel_slugs[channel_id] = slug
+        self.viewer_tasks[slug] = asyncio.create_task(self._poll_viewers(slug))
         if self._task is None or self._task.done():
             self._task = asyncio.create_task(self._run())
         elif self._ws is not None:
@@ -118,6 +121,7 @@ class KickChat:
         chatroom_id = self.rooms.pop(slug, None)
         if chatroom_id is None:
             return
+        self.viewer_tasks.pop(slug).cancel()
         self.slugs.pop(chatroom_id, None)
         channel_id = self.channel_ids.pop(slug, None)
         if channel_id:
@@ -141,6 +145,18 @@ class KickChat:
         if chatroom_id is None:
             return None
         return chatroom_id, data.get("id")
+
+    async def _poll_viewers(self, slug: str) -> None:
+        while True:
+            try:
+                async with AsyncSession(impersonate="chrome") as session:
+                    response = await session.get(CHANNEL_API.format(slug=slug), timeout=20)
+                    response.raise_for_status()
+                    livestream = response.json().get("livestream") or {}
+                await self.hub.publish_viewers(self.platform, slug, livestream.get("viewer_count"))
+            except Exception as exc:
+                logger.warning("kick viewer count failed for %s: %s", slug, exc)
+            await asyncio.sleep(VIEWER_POLL_SECONDS)
 
     async def _pusher_url(self) -> str:
         key, cluster = FALLBACK_PUSHER
