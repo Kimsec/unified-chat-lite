@@ -284,6 +284,7 @@ h2 {
     display: flex;
     align-items: center;
     gap: 10px;
+    min-width: 0;
     padding: 8px 12px;
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.03);
@@ -298,6 +299,53 @@ h2 {
     white-space: nowrap;
     font-size: 0.85rem;
     color: var(--muted);
+}
+
+.status-viewers,
+.viewer-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.status-viewers {
+    color: var(--muted);
+}
+
+.status-viewers svg,
+.viewer-badge svg {
+    height: 0.9em;
+    width: auto;
+    color: #ff4d5e;
+}
+
+.viewer-badge {
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 77, 94, 0.35);
+    background: rgba(255, 77, 94, 0.1);
+    color: var(--text);
+    font-weight: 600;
+}
+
+.panel-header .viewer-badge {
+    margin-right: auto;
+}
+
+.player-controls .viewer-badge {
+    height: 32px;
+    border-radius: 10px;
+    background: rgba(30, 40, 60, 0.45);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.viewer-badge.hidden {
+    display: none;
 }
 
 .status-dot {
@@ -860,6 +908,25 @@ h2 {
     max-width: 100%;
     margin-top: 4px;
     border-radius: 6px;
+}
+
+.bits-gem {
+    width: 1.05em;
+    height: 1.05em;
+    margin-right: 4px;
+    vertical-align: -0.18em;
+}
+
+.paid-head {
+    font-weight: 600;
+}
+
+.paid-head .badge {
+    vertical-align: -0.15em;
+}
+
+.cheer-total {
+    font-weight: 800;
 }
 
 .message-card.deleted .chat-gif {
